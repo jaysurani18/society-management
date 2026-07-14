@@ -35,9 +35,9 @@ export class DashboardService {
       prisma.maintenanceBill.count({
         where: { status: 'PAID' },
       }),
-      // Counts of pending complaints
+      // Counts of unresolved complaints (PENDING or ASSIGNED)
       prisma.complaint.count({
-        where: { status: 'PENDING' },
+        where: { status: { not: 'RESOLVED' } },
       }),
       // Recent payments (last 5 records)
       prisma.paymentRecord.findMany({
@@ -78,9 +78,9 @@ export class DashboardService {
       pendingServiceRequests,
       recentAnnouncements,
     ] = await Promise.all([
-      // Total pending complaints
+      // Total unresolved complaints
       prisma.complaint.count({
-        where: { status: 'PENDING' },
+        where: { status: { not: 'RESOLVED' } },
       }),
       // Complaints assigned directly to this user and not yet resolved
       prisma.complaint.count({

@@ -14,6 +14,15 @@ export default function ProfileSettings() {
   const [profileError, setProfileError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Custom Profile Attributes
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [emergencyName, setEmergencyName] = useState('');
+  const [emergencyPhone, setEmergencyPhone] = useState('');
+  const [vehicleNumber, setVehicleNumber] = useState('');
+  const [flatDetails, setFlatDetails] = useState(null);
+  const [residentStatus, setResidentStatus] = useState('');
+
   // Security Form States
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -27,7 +36,16 @@ export default function ProfileSettings() {
     try {
       const res = await api.get('/users/me');
       const u = res.data?.data?.user || res.data?.user || {};
+      setFirstName(u.firstName || '');
+      setLastName(u.lastName || '');
       setPhone(u.phone || '');
+      if (u.residentProfile) {
+        setFlatDetails(u.residentProfile.flat || null);
+        setResidentStatus(u.residentProfile.status || '');
+        setEmergencyName(u.residentProfile.emergencyName || '');
+        setEmergencyPhone(u.residentProfile.emergencyPhone || '');
+        setVehicleNumber(u.residentProfile.vehicleNumber || '');
+      }
     } catch (err) {
       console.error('Failed to load profile details:', err);
     }
@@ -53,13 +71,24 @@ export default function ProfileSettings() {
     setProfileError('');
     setLoading(true);
     try {
-      const res = await api.put('/users/me', { phone: phone.trim() });
+      const payload = {
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        phone: phone.trim(),
+      };
+      if (user?.role === 'RESIDENT') {
+        payload.emergencyName = emergencyName.trim();
+        payload.emergencyPhone = emergencyPhone.trim();
+        payload.vehicleNumber = vehicleNumber.trim();
+      }
+      const res = await api.put('/users/me', payload);
       if (res.status === 200 || res.data?.status === 'success') {
-        setProfileSuccess('Profile phone number updated successfully!');
+        setProfileSuccess('Profile information updated successfully!');
+        await fetchProfile();
       }
     } catch (err) {
       console.error('Profile update failed:', err);
-      setProfileError(err.response?.data?.message || 'Failed to update phone number.');
+      setProfileError(err.response?.data?.message || 'Failed to update profile.');
     } finally {
       setLoading(false);
     }
@@ -148,10 +177,42 @@ export default function ProfileSettings() {
           )}
 
           <form onSubmit={handleUpdateProfile} className="space-y-4">
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Full Name</label>
-              <div className="border border-slate-200 bg-slate-50 rounded-md p-2 text-sm text-slate-700 font-semibold">
-                {fullName}
+            {/* Flat Allotment Info (Read-only if resident) */}
+            {flatDetails && (
+              <div className="bg-slate-50 border border-slate-200 p-3 rounded-md space-y-1">
+                <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Allotted Flat Unit</span>
+                <p className="text-xs text-slate-700 font-semibold">
+                  {flatDetails.block} - {flatDetails.number} ({flatDetails.floor} Floor)
+                </p>
+                <p className="text-[10px] text-slate-500 font-medium">
+                  Tenancy Status: <span className="font-bold text-indigo-600 uppercase">{residentStatus}</span>
+                </p>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">First Name</label>
+                <input
+                  type="text"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  required
+                  disabled={loading}
+                  className="border border-slate-300 focus:border-indigo-600 focus:outline-none rounded-md p-2 text-sm w-full text-slate-950 bg-white"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Last Name</label>
+                <input
+                  type="text"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  required
+                  disabled={loading}
+                  className="border border-slate-300 focus:border-indigo-600 focus:outline-none rounded-md p-2 text-sm w-full text-slate-950 bg-white"
+                />
               </div>
             </div>
 
@@ -184,12 +245,55 @@ export default function ProfileSettings() {
               </div>
             </div>
 
+            {/* Resident Specific Personal Details */}
+            {user?.role === 'RESIDENT' && (
+              <>
+                <div className="border-t border-slate-100 my-4 pt-4 space-y-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-indigo-500">Emergency Contact Name</label>
+                    <input
+                      type="text"
+                      value={emergencyName}
+                      onChange={(e) => setEmergencyName(e.target.value)}
+                      placeholder="e.g. Spouse / Parent"
+                      disabled={loading}
+                      className="border border-slate-300 focus:border-indigo-600 focus:outline-none rounded-md p-2 text-sm w-full text-slate-950 bg-white"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-indigo-500">Emergency Contact Phone</label>
+                    <input
+                      type="text"
+                      value={emergencyPhone}
+                      onChange={(e) => setEmergencyPhone(e.target.value)}
+                      placeholder="e.g. +91 99999 88888"
+                      disabled={loading}
+                      className="border border-slate-300 focus:border-indigo-600 focus:outline-none rounded-md p-2 text-sm w-full text-slate-950 bg-white"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-indigo-500">Vehicle License Plate Number</label>
+                    <input
+                      type="text"
+                      value={vehicleNumber}
+                      onChange={(e) => setVehicleNumber(e.target.value)}
+                      placeholder="e.g. MH-12-AB-1234"
+                      disabled={loading}
+                      className="border border-slate-300 focus:border-indigo-600 focus:outline-none rounded-md p-2 text-sm w-full text-slate-950 bg-white"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+
             <button
               type="submit"
               disabled={loading}
               className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold py-2 px-4 rounded-md cursor-pointer disabled:opacity-50"
             >
-              {loading ? 'Saving...' : 'Update Phone Details'}
+              {loading ? 'Saving...' : 'Update Settings'}
             </button>
           </form>
         </section>

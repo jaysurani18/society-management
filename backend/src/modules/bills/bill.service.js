@@ -6,9 +6,17 @@ export class BillService {
    * Batch generate maintenance invoices for all active flats
    */
   async batchGenerate(input, actorId, ipAddress) {
-    const flats = await prisma.flat.findMany();
-    if (flats.length === 0) {
-      throw new BadRequestError('No flats exist in the system to generate bills for');
+    const activeFlats = await prisma.flat.findMany({
+      where: {
+        residents: {
+          some: {
+            status: 'OWNER'
+          }
+        }
+      }
+    });
+    if (activeFlats.length === 0) {
+      throw new BadRequestError('No occupied flats exist in the system to generate bills for');
     }
 
     const dueDate = new Date(input.dueDate);
@@ -17,7 +25,7 @@ export class BillService {
 
     // Use a transaction to ensure atomic execution of the batch
     await prisma.$transaction(async (tx) => {
-      for (const flat of flats) {
+      for (const flat of activeFlats) {
         // Enforce duplicate prevention check
         const existing = await tx.maintenanceBill.findUnique({
           where: {
@@ -29,7 +37,8 @@ export class BillService {
         });
 
         if (existing) {
-          throw new BadRequestError(`Billing invoice already generated for flat ${flat.number} in period ${input.billingMonth}`);
+          skippedCount++;
+          continue;
         }
 
         const bill = await tx.maintenanceBill.create({
@@ -45,6 +54,10 @@ export class BillService {
         });
 
         createdBillIds.push(bill.id);
+      }
+
+      if (skippedCount === activeFlats.length) {
+        throw new BadRequestError(`Billing statements already exist for all occupied flats in period ${input.billingMonth}`);
       }
 
       // Only write to audit logs if bills were created
@@ -66,7 +79,7 @@ export class BillService {
     });
 
     return {
-      totalFlats: flats.length,
+      totalFlats: activeFlats.length,
       createdCount: createdBillIds.length,
       skippedCount,
     };

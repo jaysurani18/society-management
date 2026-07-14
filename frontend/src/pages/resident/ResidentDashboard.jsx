@@ -17,6 +17,9 @@ export default function ResidentDashboard() {
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
+  const [summary, setSummary] = useState(null);
+  const [loadingSummary, setLoadingSummary] = useState(false);
+
   // Service Request Form States
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
@@ -50,6 +53,17 @@ export default function ResidentDashboard() {
       } finally {
         setLoadingNotices(false);
       }
+
+      // 4. Fetch Dashboard Summary
+      setLoadingSummary(true);
+      try {
+        const summaryRes = await api.get('/dashboard/summary');
+        setSummary(summaryRes.data?.data || null);
+      } catch (err) {
+        console.error('Dashboard summary fetch error:', err);
+      } finally {
+        setLoadingSummary(false);
+      }
     } catch (err) {
       console.error('Resident data fetch error:', err);
       setError(err.response?.data?.message || 'Failed to fetch personal ledger or service tickets.');
@@ -81,6 +95,107 @@ export default function ResidentDashboard() {
     } catch (err) {
       console.error('Receipt lookup error:', err);
       alert(err.response?.data?.message || 'Failed to fetch receipt details.');
+    }
+  };
+
+  const handleDownloadReceipt = async (billId) => {
+    try {
+      const res = await api.get(`/bills/${billId}/receipt`);
+      const receipt = res.data?.data?.receipt || res.data?.receipt || null;
+      if (!receipt) {
+        alert('Receipt details could not be loaded.');
+        return;
+      }
+      
+      const flatLabel = receipt.bill?.flat 
+        ? `${receipt.bill.flat.block} - ${receipt.bill.flat.number}` 
+        : 'Flat Unit';
+      const collectedByName = receipt.collectedBy 
+        ? `${receipt.collectedBy.firstName} ${receipt.collectedBy.lastName || ''}` 
+        : 'Society Admin';
+
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Payment Receipt #${receipt.receiptNumber}</title>
+          <style>
+            body { font-family: Arial, sans-serif; color: #334155; padding: 40px; margin: 0; background-color: #f8fafc; }
+            .receipt-box { max-width: 600px; margin: auto; padding: 30px; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05); }
+            .header { border-bottom: 2px solid #6366f1; padding-bottom: 20px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; }
+            .title { font-size: 22px; font-weight: bold; color: #4f46e5; margin: 0; }
+            .receipt-no { font-size: 12px; color: #64748b; font-family: monospace; }
+            .grid { display: grid; grid-template-cols: 1fr 1fr; gap: 16px; margin-bottom: 25px; }
+            .label { font-size: 10px; font-weight: bold; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px; }
+            .value { font-size: 14px; font-weight: 600; color: #0f172a; margin-top: 4px; }
+            .amount-section { background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; border-radius: 6px; text-align: center; margin-bottom: 25px; }
+            .amount { font-size: 28px; font-weight: bold; color: #10b981; }
+            .footer { border-top: 1px solid #e2e8f0; padding-top: 15px; text-align: center; font-size: 11px; color: #94a3b8; margin-top: 30px; }
+          </style>
+        </head>
+        <body>
+          <div class="receipt-box">
+            <div class="header">
+              <h1 class="title">SOCIETY PAYMENT RECEIPT</h1>
+              <span class="receipt-no">No: ${receipt.receiptNumber}</span>
+            </div>
+            
+            <div class="amount-section">
+              <div class="label">Amount Paid</div>
+              <div class="amount">₹${receipt.amountPaid.toFixed(2)}</div>
+            </div>
+
+            <div class="grid">
+              <div>
+                <div class="label">Property Unit</div>
+                <div class="value">${flatLabel}</div>
+              </div>
+              <div>
+                <div class="label">Billing Period</div>
+                <div class="value">${receipt.bill?.billingPeriod || 'N/A'}</div>
+              </div>
+              <div>
+                <div class="label">Paid By</div>
+                <div class="value">${receipt.paidByName}</div>
+              </div>
+              <div>
+                <div class="label">Collected By</div>
+                <div class="value">${collectedByName}</div>
+              </div>
+              <div>
+                <div class="label">Transaction Date</div>
+                <div class="value">${new Date(receipt.createdAt).toLocaleString()}</div>
+              </div>
+              <div>
+                <div class="label">Payment Method</div>
+                <div class="value">${receipt.paymentMethod}</div>
+              </div>
+            </div>
+
+            <div class="footer">
+              <p>This is a system-generated document confirming cash/online settlement of maintenance dues.</p>
+              <p>Society Management System &copy; 2026</p>
+            </div>
+          </div>
+          <script>
+            window.onload = function() { window.print(); }
+          </script>
+        </body>
+        </html>
+      `;
+
+      const blob = new Blob([htmlContent], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Receipt_${receipt.receiptNumber}.html`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Failed to download receipt:', err);
+      alert('Failed to download receipt document.');
     }
   };
 
@@ -171,6 +286,34 @@ export default function ResidentDashboard() {
 
       {/* Main Workspace Column */}
       <main className="flex-1 p-6 space-y-8 max-w-7xl mx-auto w-full">
+        
+        {/* Resident Summary Stats Strip */}
+        {summary && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="bg-white border border-slate-200 p-4 space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Outstanding Balance</span>
+              <p className="text-xl font-bold text-red-600">
+                ₹{(summary.outstandingBalance || 0).toFixed(2)}
+              </p>
+            </div>
+            <div className="bg-white border border-slate-200 p-4 space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Unpaid Invoices</span>
+              <p className="text-xl font-bold text-slate-900">{summary.unpaidBillsCount || 0}</p>
+            </div>
+            <div className="bg-white border border-slate-200 p-4 space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">My Open Complaints</span>
+              <p className="text-xl font-bold text-indigo-600">
+                {(summary.complaintsCount?.PENDING || 0) + (summary.complaintsCount?.ASSIGNED || 0)}
+              </p>
+            </div>
+            <div className="bg-white border border-slate-200 p-4 space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">My Pending Requests</span>
+              <p className="text-xl font-bold text-amber-600">
+                {(summary.serviceRequestsCount?.PENDING || 0) + (summary.serviceRequestsCount?.APPROVED || 0)}
+              </p>
+            </div>
+          </div>
+        )}
         
         {/* Error/Success Alerts */}
         {error && (
@@ -290,12 +433,20 @@ export default function ResidentDashboard() {
                               Pay Cash at Society Office
                             </span>
                           ) : (
-                            <button
-                              onClick={() => handleViewReceipt(bill.id)}
-                              className="text-indigo-600 hover:text-indigo-800 text-xs font-semibold focus:outline-none cursor-pointer"
-                            >
-                              View Receipt
-                            </button>
+                            <div className="flex items-center gap-3">
+                              <button
+                                onClick={() => handleViewReceipt(bill.id)}
+                                className="text-indigo-600 hover:text-indigo-800 text-xs font-semibold focus:outline-none cursor-pointer"
+                              >
+                                View Receipt
+                              </button>
+                              <button
+                                onClick={() => handleDownloadReceipt(bill.id)}
+                                className="text-emerald-600 hover:text-emerald-800 text-xs font-semibold focus:outline-none cursor-pointer"
+                              >
+                                Download Receipt
+                              </button>
+                            </div>
                           )}
                         </td>
                       </tr>

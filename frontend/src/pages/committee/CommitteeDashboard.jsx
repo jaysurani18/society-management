@@ -39,6 +39,8 @@ export default function CommitteeDashboard() {
   const [publishingNotice, setPublishingNotice] = useState(false);
   const [noticeSuccess, setNoticeSuccess] = useState('');
   const [noticeError, setNoticeError] = useState('');
+  const [notices, setNotices] = useState([]);
+  const [loadingNotices, setLoadingNotices] = useState(false);
 
   // Layout Tab State
   const [currentTab, setCurrentTab] = useState('tickets'); // options: 'tickets', 'finance', 'notices'
@@ -86,10 +88,27 @@ export default function CommitteeDashboard() {
     }
   };
 
+  const [summary, setSummary] = useState(null);
+  const [loadingSummary, setLoadingSummary] = useState(false);
+
+  const fetchSummary = async () => {
+    setLoadingSummary(true);
+    try {
+      const res = await api.get('/dashboard/summary');
+      setSummary(res.data?.data || null);
+    } catch (err) {
+      console.error('Failed to load committee summary stats:', err);
+    } finally {
+      setLoadingSummary(false);
+    }
+  };
+
   useEffect(() => {
     fetchRequests();
     fetchUnpaidBills();
     fetchComplaints();
+    fetchSummary();
+    fetchNotices();
   }, []);
 
   // Handle Review (APPROVE / REJECT)
@@ -101,6 +120,7 @@ export default function CommitteeDashboard() {
       if (res.data?.status === 'success') {
         setSuccessMsg(`Service request successfully updated to ${status}.`);
         await fetchRequests();
+        await fetchSummary();
       }
     } catch (err) {
       console.error('Review action failed:', err);
@@ -117,6 +137,7 @@ export default function CommitteeDashboard() {
       if (res.data?.status === 'success') {
         setSuccessMsg('Service request marked as completed successfully.');
         await fetchRequests();
+        await fetchSummary();
       }
     } catch (err) {
       console.error('Resolve action failed:', err);
@@ -143,8 +164,8 @@ export default function CommitteeDashboard() {
         dueDate: new Date(dueDate).toISOString(),
       });
 
-      if (res.data?.status === 'success' || res.status === 201) {
-        setSuccessMsg(`Batch billing generation complete. Invoiced ${res.data?.data?.count || 'all'} active flat units.`);
+      if (res.data?.success || res.data?.status === 'success' || res.status === 200 || res.status === 201) {
+        setSuccessMsg(res.data?.message || 'Batch billing generation complete. Invoiced active flat units.');
         await fetchUnpaidBills(); // Refresh unpaid dues
       }
     } catch (err) {
@@ -207,12 +228,42 @@ export default function CommitteeDashboard() {
         setNoticeSuccess('Society notice published successfully!');
         setNoticeTitle('');
         setNoticeContent('');
+        await fetchNotices();
       }
     } catch (err) {
       console.error('Failed to publish notice:', err);
       setNoticeError(err.response?.data?.message || 'Failed to publish society notice.');
     } finally {
       setPublishingNotice(false);
+    }
+  };
+
+  const fetchNotices = async () => {
+    setLoadingNotices(true);
+    try {
+      const res = await api.get('/announcements');
+      const list = res.data?.data?.announcements || res.data?.data || [];
+      setNotices(Array.isArray(list) ? list : []);
+    } catch (err) {
+      console.error('Failed to load notices:', err);
+    } finally {
+      setLoadingNotices(false);
+    }
+  };
+
+  const handleDeleteNotice = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this notice/announcement?')) {
+      return;
+    }
+    try {
+      const res = await api.delete(`/announcements/${id}`);
+      if (res.status === 200 || res.data?.status === 'success') {
+        alert('Notice deleted successfully.');
+        await fetchNotices();
+      }
+    } catch (err) {
+      console.error('Failed to delete notice:', err);
+      alert(err.response?.data?.message || 'Failed to delete notice.');
     }
   };
 
@@ -228,6 +279,7 @@ export default function CommitteeDashboard() {
       if (res.data?.status === 'success' || res.status === 200) {
         setSuccessMsg('Complaint successfully marked as resolved.');
         await fetchComplaints();
+        await fetchSummary();
       }
     } catch (err) {
       console.error('Resolve complaint failed:', err);
@@ -290,6 +342,24 @@ export default function CommitteeDashboard() {
 
       {/* Main Workspace Container */}
       <main className="flex-1 p-6 space-y-6 max-w-7xl mx-auto w-full">
+        {/* Committee Summary Stats Strip */}
+        {summary && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-white border border-slate-200 p-4 space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Unresolved Complaints</span>
+              <p className="text-xl font-bold text-slate-900">{summary.totalPendingComplaints || 0}</p>
+            </div>
+            <div className="bg-white border border-slate-200 p-4 space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Complaints Assigned To Me</span>
+              <p className="text-xl font-bold text-indigo-600">{summary.assignedComplaintsToMe || 0}</p>
+            </div>
+            <div className="bg-white border border-slate-200 p-4 space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Open Service Requests</span>
+              <p className="text-xl font-bold text-amber-600">{summary.pendingServiceRequests || 0}</p>
+            </div>
+          </div>
+        )}
+
         {/* Flat Horizontal Tab Selector Strip */}
         <div className="border-b border-slate-200 flex gap-4">
           <button
@@ -586,8 +656,9 @@ export default function CommitteeDashboard() {
         )}
 
         {currentTab === 'finance' && (
-          <div className="p-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="p-6 space-y-8">
+            {/* Financial Automations (Full Width/Max-W Centered) */}
+            <div className="max-w-3xl">
               {/* Financial Automations (1/3 width) */}
               <section className="bg-white border border-slate-200 p-6 space-y-4 flex flex-col">
                 <div className="space-y-1">
@@ -657,9 +728,10 @@ export default function CommitteeDashboard() {
                   </form>
                 </div>
               </section>
+            </div>
 
-              {/* Outstanding Dues Ledger (2/3 width) */}
-              <section className="lg:col-span-2 bg-white border border-slate-200 p-6 space-y-4">
+            {/* Outstanding Dues Ledger (Full Width) */}
+            <section className="bg-white border border-slate-200 p-6 space-y-4">
                 <div className="flex items-center gap-2 text-slate-800 font-semibold text-sm">
                   <Check size={16} className="text-slate-500" />
                   <h3>Outstanding Dues Ledger</h3>
@@ -744,67 +816,112 @@ export default function CommitteeDashboard() {
                   )}
                 </div>
               </section>
-            </div>
           </div>
         )}
 
         {currentTab === 'notices' && (
           <div className="p-6">
-            <div className="max-w-2xl mx-auto mt-4 bg-white border border-slate-200 p-6 space-y-4">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 text-indigo-600 font-semibold text-sm">
-                  <FileText size={16} />
-                  <h3>Publish Society Notice</h3>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-5xl mx-auto mt-4 items-start">
+              
+              {/* Left Column: Publish notice */}
+              <div className="bg-white border border-slate-200 p-6 space-y-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-indigo-600 font-semibold text-sm">
+                    <FileText size={16} />
+                    <h3>Publish Society Notice</h3>
+                  </div>
+                  <p className="text-xs text-slate-500">Broadcast important bulletins to all residents.</p>
                 </div>
-                <p className="text-xs text-slate-500">Broadcast important bulletins to all residents.</p>
+
+                {noticeError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 text-xs p-3 font-medium">
+                    {noticeError}
+                  </div>
+                )}
+                {noticeSuccess && (
+                  <div className="bg-green-50 border border-green-200 text-green-700 text-xs p-3 font-medium">
+                    {noticeSuccess}
+                  </div>
+                )}
+
+                <form onSubmit={handlePublishNotice} className="space-y-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Notice Title</label>
+                    <input
+                      type="text"
+                      value={noticeTitle}
+                      onChange={(e) => setNoticeTitle(e.target.value)}
+                      placeholder="e.g. Scheduled Water Shutdown"
+                      required
+                      disabled={publishingNotice}
+                      className="border border-slate-300 focus:border-indigo-600 focus:outline-none rounded-md p-2 w-full text-slate-950 text-sm bg-white"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Notice Content</label>
+                    <textarea
+                      value={noticeContent}
+                      onChange={(e) => setNoticeContent(e.target.value)}
+                      placeholder="Type the notice details..."
+                      required
+                      rows={4}
+                      disabled={publishingNotice}
+                      className="border border-slate-300 focus:border-indigo-600 focus:outline-none rounded-md p-2 w-full text-slate-950 text-sm bg-white resize-none"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={publishingNotice}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold py-2 px-4 rounded-md w-full cursor-pointer disabled:opacity-50"
+                  >
+                    {publishingNotice ? 'Publishing...' : 'Publish Notice'}
+                  </button>
+                </form>
               </div>
 
-              {noticeError && (
-                <div className="bg-red-50 border border-red-200 text-red-700 text-xs p-3 font-medium">
-                  {noticeError}
-                </div>
-              )}
-              {noticeSuccess && (
-                <div className="bg-green-50 border border-green-200 text-green-700 text-xs p-3 font-medium">
-                  {noticeSuccess}
-                </div>
-              )}
-
-              <form onSubmit={handlePublishNotice} className="space-y-4">
+              {/* Right Column: Published Notice bulletins */}
+              <div className="bg-white border border-slate-200 p-6 space-y-4">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Notice Title</label>
-                  <input
-                    type="text"
-                    value={noticeTitle}
-                    onChange={(e) => setNoticeTitle(e.target.value)}
-                    placeholder="e.g. Scheduled Water Shutdown"
-                    required
-                    disabled={publishingNotice}
-                    className="border border-slate-300 focus:border-indigo-600 focus:outline-none rounded-md p-2 w-full text-slate-950 text-sm bg-white"
-                  />
+                  <div className="flex items-center gap-2 text-indigo-600 font-semibold text-sm">
+                    <FileText size={16} />
+                    <h3>Active Notice Bulletin Registry</h3>
+                  </div>
+                  <p className="text-xs text-slate-500 font-medium">Manage and delete posted bulletins.</p>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Notice Content</label>
-                  <textarea
-                    value={noticeContent}
-                    onChange={(e) => setNoticeContent(e.target.value)}
-                    placeholder="Type the notice details..."
-                    required
-                    rows={4}
-                    disabled={publishingNotice}
-                    className="border border-slate-300 focus:border-indigo-600 focus:outline-none rounded-md p-2 w-full text-slate-950 text-sm bg-white resize-none"
-                  />
-                </div>
+                {loadingNotices ? (
+                  <p className="text-xs text-slate-500 italic">Syncing notice board...</p>
+                ) : notices.length === 0 ? (
+                  <p className="text-xs text-slate-400 italic p-4 border border-dashed border-slate-200 text-center bg-slate-50">
+                    No notice letters currently broadcasted.
+                  </p>
+                ) : (
+                  <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
+                    {notices.map((n) => (
+                      <div key={n.id} className="p-3 border border-slate-200 bg-slate-50/50 flex flex-col justify-between space-y-2">
+                        <div className="flex justify-between items-start gap-2">
+                          <div>
+                            <h4 className="text-xs font-bold text-slate-900">{n.title}</h4>
+                            <span className="text-[9px] text-slate-400 font-mono">
+                              {new Date(n.createdAt).toLocaleString()}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => handleDeleteNotice(n.id)}
+                            className="text-red-500 hover:text-red-700 text-[10px] font-bold border border-red-200 hover:bg-red-50 px-1.5 py-0.5 rounded cursor-pointer"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-slate-600 whitespace-pre-line leading-relaxed">{n.content}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
-                <button
-                  type="submit"
-                  disabled={publishingNotice}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold py-2 px-4 rounded-md w-full cursor-pointer disabled:opacity-50"
-                >
-                  {publishingNotice ? 'Publishing...' : 'Publish Notice'}
-                </button>
-              </form>
             </div>
           </div>
         )}

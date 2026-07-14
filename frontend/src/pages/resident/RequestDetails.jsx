@@ -18,6 +18,10 @@ export default function RequestDetails() {
   const [commentText, setCommentText] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
 
+  // Feedback Form States
+  const [feedbackText, setFeedbackText] = useState('');
+  const [submittingFeedback, setSubmittingFeedback] = useState(false);
+
   // Fetch single service request detail
   const fetchRequestDetails = async () => {
     setLoading(true);
@@ -63,6 +67,33 @@ export default function RequestDetails() {
       setError(err.response?.data?.message || 'Failed to submit comment.');
     } finally {
       setSubmittingComment(false);
+    }
+  };
+
+  // Submit feedback
+  const handlePostFeedback = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    if (!feedbackText.trim()) {
+      return;
+    }
+
+    setSubmittingFeedback(true);
+    try {
+      const res = await api.patch(`/service-requests/${id}/feedback`, {
+        feedback: feedbackText.trim(),
+      });
+
+      if (res.data?.status === 'success' || res.status === 200) {
+        setFeedbackText('');
+        await fetchRequestDetails(); // Re-fetch to instantly load feedback details
+      }
+    } catch (err) {
+      console.error('Failed to post feedback:', err);
+      setError(err.response?.data?.message || 'Failed to submit feedback.');
+    } finally {
+      setSubmittingFeedback(false);
     }
   };
 
@@ -176,10 +207,34 @@ export default function RequestDetails() {
                 Assigned To: <span className="font-semibold text-slate-600">{ticket.assignedTo.firstName} {ticket.assignedTo.lastName} (Committee)</span>
               </p>
             )}
-            {ticket.feedback && (
+            {ticket.feedback ? (
               <p className="w-full mt-2 bg-slate-50 border border-slate-100 p-2 text-slate-600">
                 <span className="font-bold text-slate-700">Resident Feedback:</span> "{ticket.feedback}"
               </p>
+            ) : (
+              ticket.status === 'COMPLETED' && user?.role === 'RESIDENT' && (
+                <div className="w-full mt-4 border-t border-slate-100 pt-4 space-y-3">
+                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Submit Your Feedback</h4>
+                  <form onSubmit={handlePostFeedback} className="flex gap-2">
+                    <input
+                      type="text"
+                      value={feedbackText}
+                      onChange={(e) => setFeedbackText(e.target.value)}
+                      placeholder="Share your feedback on the resolution..."
+                      required
+                      disabled={submittingFeedback}
+                      className="border border-slate-300 focus:border-indigo-600 focus:outline-none flex-1 px-3 py-1.5 text-sm bg-white text-slate-950 rounded-md"
+                    />
+                    <button
+                      type="submit"
+                      disabled={submittingFeedback || !feedbackText.trim()}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2 rounded-md disabled:opacity-50 cursor-pointer focus:outline-none"
+                    >
+                      {submittingFeedback ? 'Submitting...' : 'Submit'}
+                    </button>
+                  </form>
+                </div>
+              )
             )}
           </div>
         </section>

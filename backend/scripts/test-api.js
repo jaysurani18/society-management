@@ -499,7 +499,7 @@ async function testWorkflow() {
       dueDate: new Date('2027-08-01').toISOString(),
     }),
   });
-  assertStatus(billGenRes, 201, 'Failed to generate initial bills');
+  assertStatus(billGenRes, 200, 'Failed to generate initial bills');
   console.log('✅ Batch generation successful.');
 
   // Fetch unpaid bills

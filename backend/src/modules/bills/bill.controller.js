@@ -16,8 +16,11 @@ export class BillController {
 
       const result = await this.billService.batchGenerate(validatedInput, actorId, req.ip);
 
-      res.status(201).json({
-        status: 'success',
+      console.log(`Successfully generated batch invoices for ${result.totalFlats} occupied units. Vacant properties were skipped.`);
+
+      res.status(200).json({
+        success: true,
+        message: `Successfully generated batch invoices for ${result.totalFlats} occupied units. Vacant properties were skipped.`,
         data: result,
       });
     } catch (error) {
