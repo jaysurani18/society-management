@@ -18,6 +18,12 @@ router.get(
   serviceRequestController.getAll
 );
 
+router.get(
+  '/:id',
+  authenticateJWT, // Verified inside the controller
+  serviceRequestController.getById
+);
+
 router.patch(
   '/:id/review',
   authenticateJWT,
@@ -37,6 +43,12 @@ router.patch(
   authenticateJWT,
   authorizeRoles('RESIDENT'),
   serviceRequestController.submitFeedback
+);
+
+router.post(
+  '/:id/comments',
+  authenticateJWT, // Checked internally inside the controller
+  serviceRequestController.addComment
 );
 
 export default router;

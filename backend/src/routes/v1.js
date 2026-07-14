@@ -1,5 +1,6 @@
 import express from 'express';
 import authRoutes from '../modules/auth/auth.routes.js';
+import userRoutes from '../modules/users/user.routes.js';
 import flatRoutes from '../modules/flats/flat.routes.js';
 import residentRoutes from '../modules/residents/resident.routes.js';
 import committeeRoutes from '../modules/committee/committee.routes.js';
@@ -15,6 +16,7 @@ import auditRoutes from '../modules/audit/audit.routes.js';
 const router = express.Router();
 
 router.use('/auth', authRoutes);
+router.use('/users', userRoutes);
 router.use('/flats', flatRoutes);
 router.use('/residents', residentRoutes);
 router.use('/committee', committeeRoutes);

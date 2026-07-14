@@ -12,16 +12,15 @@ export class ComplaintController {
    */
   create = async (req, res, next) => {
     try {
-      if (!req.file) {
-        throw new BadRequestError('Complaint image attachment is required');
-      }
-
       const validatedInput = createComplaintSchema.parse(req.body);
       const actorId = req.user?.id;
 
+      // Extract Cloudinary URL/path for database persistence
+      const imageUrl = req.file ? (req.file.path || req.file.secure_url) : null;
+
       const ticket = await this.complaintService.createComplaint(
         validatedInput,
-        req.file.buffer,
+        imageUrl,
         actorId,
         req.ip
       );
@@ -142,6 +141,28 @@ export class ComplaintController {
         status: 'success',
         data: {
           comment,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * Fetch single complaint by ID
+   */
+  getById = async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const actorId = req.user?.id;
+      const actorRole = req.user?.role;
+
+      const ticket = await this.complaintService.getComplaintById(id, actorId, actorRole);
+
+      res.status(200).json({
+        status: 'success',
+        data: {
+          complaint: ticket,
         },
       });
     } catch (error) {

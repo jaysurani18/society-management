@@ -1,6 +1,8 @@
 import prisma from '../../config/prisma.js';
 import { BadRequestError, NotFoundError, ForbiddenError } from '../../utils/customErrors.js';
 
+const serviceRequestComments = new Map();
+
 export class ServiceRequestService {
   /**
    * Initialize a new service request (Status starts as 'PENDING')
@@ -236,5 +238,106 @@ export class ServiceRequestService {
     });
 
     return updated;
+  }
+
+  /**
+   * Fetch single service request detail
+   */
+  async getRequestById(id, actorId, actorRole) {
+    const request = await prisma.serviceRequest.findUnique({
+      where: { id },
+      include: {
+        raisedBy: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            role: true,
+          },
+        },
+        assignedTo: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            role: true,
+          },
+        },
+      },
+    });
+
+    if (!request) {
+      throw new NotFoundError('Service request not found');
+    }
+
+    // Residents can only view their own requests
+    if (actorRole === 'RESIDENT' && request.raisedById !== actorId) {
+      throw new ForbiddenError('You do not have permission to view this service request');
+    }
+
+    const comments = serviceRequestComments.get(id) || [];
+
+    return {
+      ...request,
+      comments,
+    };
+  }
+
+  /**
+   * Add comment to service request timeline
+   */
+  async addComment(id, commentText, actorId, actorRole, ipAddress) {
+    const request = await prisma.serviceRequest.findUnique({
+      where: { id },
+    });
+
+    if (!request) {
+      throw new NotFoundError('Service request not found');
+    }
+
+    // Access check: residents can only add comment to their own request
+    if (actorRole === 'RESIDENT' && request.raisedById !== actorId) {
+      throw new ForbiddenError('You can only comment on your own service requests');
+    }
+
+    const author = await prisma.user.findUnique({
+      where: { id: actorId },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+      },
+    });
+
+    const newComment = {
+      id: Math.random().toString(36).substr(2, 9),
+      comment: commentText,
+      createdAt: new Date().toISOString(),
+      author,
+    };
+
+    if (!serviceRequestComments.has(id)) {
+      serviceRequestComments.set(id, []);
+    }
+    serviceRequestComments.get(id).push(newComment);
+
+    // Create audit log for this comment
+    await prisma.auditLog.create({
+      data: {
+        userId: actorId,
+        action: 'SERVICE_REQUEST_COMMENT_ADD',
+        details: JSON.stringify({
+          requestId: id,
+          commentId: newComment.id,
+        }),
+        ipAddress: ipAddress || null,
+      },
+    });
+
+    return newComment;
   }
 }

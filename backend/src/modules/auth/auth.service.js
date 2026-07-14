@@ -238,4 +238,27 @@ export class AuthService {
 
     return { success: true };
   }
+
+  /**
+   * Fetch complete profile of currently logged-in user
+   */
+  async getMe(userId) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        isActive: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundError('User not found');
+    }
+
+    return user;
+  }
 }

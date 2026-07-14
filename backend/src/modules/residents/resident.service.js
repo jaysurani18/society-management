@@ -85,6 +85,18 @@ export class ResidentService {
   }
 
   /**
+   * Find an active OWNER by flat ID
+   */
+  async findActiveOwnerByFlatId(flatId) {
+    return prisma.residentProfile.findFirst({
+      where: {
+        flatId: flatId,
+        status: 'OWNER',
+      },
+    });
+  }
+
+  /**
    * Fetch all residents using pagination, search, and status filters
    */
   async getResidents(params) {

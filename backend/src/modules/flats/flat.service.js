@@ -59,4 +59,55 @@ export class FlatService {
       ],
     });
   }
+
+  /**
+   * Delete flat unit if not occupied
+   */
+  async deleteFlat(flatId, userId, ipAddress) {
+    const existingOccupant = await prisma.residentProfile.findFirst({
+      where: {
+        flatId: flatId,
+        status: 'OWNER',
+      },
+    });
+
+    if (existingOccupant) {
+      throw new BadRequestError('Cannot delete an occupied flat. Deactivate the resident first.');
+    }
+
+    const flat = await prisma.flat.findUnique({
+      where: { id: flatId },
+    });
+
+    if (!flat) {
+      throw new NotFoundError('Flat not found');
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // In case there are records referencing the flat, we also clear payment / bills if needed, 
+      // or Prisma's onDelete: Restrict handles it. Let's delete bills first if empty flat.
+      await tx.maintenanceBill.deleteMany({
+        where: { flatId: flatId }
+      });
+
+      await tx.flat.delete({
+        where: { id: flatId },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId: userId,
+          action: 'FLAT_DELETE',
+          details: JSON.stringify({
+            flatId: flat.id,
+            flatNumber: flat.number,
+            buildingName: flat.block,
+          }),
+          ipAddress: ipAddress || null,
+        },
+      });
+    });
+
+    return true;
+  }
 }

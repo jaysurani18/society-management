@@ -14,7 +14,7 @@ dotenv.config();
 const app = express();
 
 // Security Middlewares
-app.use(helmet());
+app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 
 // CORS Configuration
 const allowedOrigins = process.env.ALLOWED_ORIGINS 
@@ -36,6 +36,12 @@ app.use(cors(corsOptions));
 // Body parsing
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Serve static uploads
+app.use('/uploads', (req, res, next) => {
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  next();
+}, express.static('uploads'));
 
 // Morgan request logger integration with Winston
 const morganStream = {

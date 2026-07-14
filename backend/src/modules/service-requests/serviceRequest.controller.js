@@ -138,4 +138,62 @@ export class ServiceRequestController {
       next(error);
     }
   };
+
+  /**
+   * Fetch single service request by ID
+   */
+  getById = async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const actorId = req.user?.id;
+      const actorRole = req.user?.role;
+
+      const request = await this.serviceRequestService.getRequestById(id, actorId, actorRole);
+
+      res.status(200).json({
+        status: 'success',
+        data: {
+          serviceRequest: request,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * Post comment to service request timeline
+   */
+  addComment = async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const commentText = req.body.content || req.body.comment || '';
+      if (!commentText.trim()) {
+        return res.status(400).json({
+          status: 'fail',
+          message: 'Comment content is required',
+        });
+      }
+
+      const actorId = req.user?.id;
+      const actorRole = req.user?.role;
+
+      const comment = await this.serviceRequestService.addComment(
+        id,
+        commentText.trim(),
+        actorId,
+        actorRole,
+        req.ip
+      );
+
+      res.status(201).json({
+        status: 'success',
+        data: {
+          comment,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
 }

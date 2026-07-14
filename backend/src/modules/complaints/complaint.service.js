@@ -22,19 +22,7 @@ export class ComplaintService {
   /**
    * Create a new complaint ticket with image upload
    */
-  async createComplaint(input, fileBuffer, actorId, ipAddress) {
-    if (!fileBuffer) {
-      throw new BadRequestError('Complaint image attachment is required');
-    }
-
-    // Stream upload file to Cloudinary
-    let imageUrl;
-    try {
-      imageUrl = await uploadToCloudinary(fileBuffer);
-    } catch (err) {
-      throw new BadRequestError(`Failed to upload attachment: ${err.message}`);
-    }
-
+  async createComplaint(input, imageUrl, actorId, ipAddress) {
     const complaint = await prisma.$transaction(async (tx) => {
       const ticket = await tx.complaint.create({
         data: {
@@ -316,5 +304,62 @@ export class ComplaintService {
     });
 
     return comment;
+  }
+
+  /**
+   * Fetch single complaint ticket by ID with ownership verification and comments
+   */
+  async getComplaintById(id, actorId, actorRole) {
+    const ticket = await prisma.complaint.findUnique({
+      where: { id },
+      include: {
+        raisedBy: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            role: true,
+          },
+        },
+        assignedTo: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            role: true,
+          },
+        },
+        comments: {
+          include: {
+            author: {
+              select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+                role: true,
+              },
+            },
+          },
+          orderBy: {
+            createdAt: 'asc',
+          },
+        },
+      },
+    });
+
+    if (!ticket) {
+      throw new NotFoundError('Complaint ticket not found');
+    }
+
+    // Role-based access verification:
+    // Residents can only view their own complaints
+    if (actorRole === 'RESIDENT' && ticket.raisedById !== actorId) {
+      throw new ForbiddenError('You do not have permission to view this complaint');
+    }
+
+    return ticket;
   }
 }

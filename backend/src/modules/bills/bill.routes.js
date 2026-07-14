@@ -8,7 +8,7 @@ const billController = new BillController();
 router.post(
   '/batch-generate',
   authenticateJWT,
-  authorizeRoles('ADMIN'),
+  authorizeRoles('ADMIN', 'COMMITTEE'),
   billController.batchGenerate
 );
 

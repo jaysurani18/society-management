@@ -95,7 +95,7 @@ export class AuthController {
 
       const result = await this.authService.changePassword(
         userId,
-        validatedInput.currentPassword,
+        validatedInput.currentPassword || validatedInput.oldPassword,
         validatedInput.newPassword,
         req.ip
       );
@@ -104,6 +104,25 @@ export class AuthController {
         status: 'success',
         message: 'Password changed successfully',
         data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * Handle fetching logged-in user profile details
+   */
+  getMe = async (req, res, next) => {
+    try {
+      const userId = req.user?.id;
+      const user = await this.authService.getMe(userId);
+
+      res.status(200).json({
+        status: 'success',
+        data: {
+          user,
+        },
       });
     } catch (error) {
       next(error);

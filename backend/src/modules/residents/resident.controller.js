@@ -15,6 +15,17 @@ export class ResidentController {
       const validatedInput = onboardResidentSchema.parse(req.body);
       const actorId = req.user?.id;
 
+      // Implement strict validation lock preventing duplicate active owners
+      if (validatedInput.status === 'OWNER') {
+        const existingOccupant = await this.residentService.findActiveOwnerByFlatId(validatedInput.flatId);
+        if (existingOccupant) {
+          return res.status(400).json({
+            success: false,
+            message: "Validation Error: This flat property already has an active owner assigned."
+          });
+        }
+      }
+
       const profile = await this.residentService.onboardResident(validatedInput, actorId, req.ip);
 
       res.status(201).json({

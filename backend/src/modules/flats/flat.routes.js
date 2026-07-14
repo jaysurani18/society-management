@@ -19,4 +19,11 @@ router.get(
   flatController.getAll
 );
 
+router.delete(
+  '/:id',
+  authenticateJWT,
+  authorizeRoles('ADMIN'),
+  flatController.delete
+);
+
 export default router;

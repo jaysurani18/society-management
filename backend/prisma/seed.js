@@ -38,26 +38,75 @@ async function main() {
   console.log('🗑️  Cleared Flat table');
 
   console.log('✅ Database clean-up complete.');
-  console.log('🌱 Seeding Master Admin account...');
 
-  // Hash the admin password
-  const salt = await bcrypt.genSalt(10);
-  const hashedPassword = await bcrypt.hash('Admin@123', salt);
+  console.log('🌱 Seeding sample Flat properties...');
+  const flat101 = await prisma.flat.create({ data: { block: 'Wing A', number: '101', floor: 1 } });
+  const flat102 = await prisma.flat.create({ data: { block: 'Wing A', number: '102', floor: 1 } });
+  const flat401 = await prisma.flat.create({ data: { block: 'Wing B', number: '401', floor: 4 } });
+  const flat402 = await prisma.flat.create({ data: { block: 'Wing B', number: '402', floor: 4 } });
+  console.log('🏢 Flat items seeded successfully.');
 
-  // Seed the admin
+  console.log('🌱 Hashing credentials passwords...');
+  const saltRounds = 10;
+  const adminPassword = await bcrypt.hash('Admin@123', saltRounds);
+  const residentPassword = await bcrypt.hash('Resident@123', saltRounds);
+  const committeePassword = await bcrypt.hash('Committee@123', saltRounds);
+
+  console.log('🌱 Seeding role accounts...');
+
+  // 1. Admin Account
   const admin = await prisma.user.create({
     data: {
       email: 'admin@society.com',
-      password: hashedPassword,
+      password: adminPassword,
       firstName: 'System',
       lastName: 'Administrator',
       role: 'ADMIN',
-      phone: '1234567890',
+      phone: '1111111111',
       isActive: true,
     },
   });
+  console.log(`👤 Master Admin seeded: ${admin.email}`);
 
-  console.log(`👤 Master Admin seeded with ID: ${admin.id}`);
+  // 2. Resident Account
+  const resident = await prisma.user.create({
+    data: {
+      email: 'resident@society.com',
+      password: residentPassword,
+      firstName: 'John',
+      lastName: 'Doe',
+      role: 'RESIDENT',
+      phone: '2222222222',
+      isActive: true,
+      residentProfile: {
+        create: {
+          flatId: flat101.id,
+          status: 'OWNER',
+        },
+      },
+    },
+  });
+  console.log(`👤 Resident seeded: ${resident.email} (Flat: Wing A - 101)`);
+
+  // 3. Committee Account
+  const committee = await prisma.user.create({
+    data: {
+      email: 'committee@society.com',
+      password: committeePassword,
+      firstName: 'Jane',
+      lastName: 'Smith',
+      role: 'COMMITTEE',
+      phone: '3333333333',
+      isActive: true,
+      committeeProfile: {
+        create: {
+          designation: 'Treasurer',
+          termStart: new Date(),
+        },
+      },
+    },
+  });
+  console.log(`👤 Committee Member seeded: ${committee.email} (Designation: Treasurer)`);
 
   // Create initial log entry
   await prisma.auditLog.create({
@@ -65,27 +114,11 @@ async function main() {
       userId: admin.id,
       action: 'SYSTEM_INITIALIZATION',
       details: JSON.stringify({
-        message: 'System database initialization and admin seeding completed successfully',
+        message: 'System database initialization and core test users seeding completed successfully',
         seeder: 'prisma/seed.js',
       }),
     },
   });
-
-  console.log('🌱 Seeding sample Flat properties...');
-
-  const flatsData = [
-    { block: 'Wing A', number: '101', floor: 1 },
-    { block: 'Wing A', number: '102', floor: 1 },
-    { block: 'Wing B', number: '401', floor: 4 },
-    { block: 'Wing B', number: '402', floor: 4 },
-  ];
-
-  for (const flat of flatsData) {
-    const createdFlat = await prisma.flat.create({
-      data: flat,
-    });
-    console.log(`🏢 Seeded Property flat: ${createdFlat.block} - Room ${createdFlat.number} (Floor ${createdFlat.floor})`);
-  }
 
   console.log('🎉 Seeding successfully completed!');
 }

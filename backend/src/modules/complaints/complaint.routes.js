@@ -20,6 +20,12 @@ router.get(
   complaintController.getAll
 );
 
+router.get(
+  '/:id',
+  authenticateJWT, // Open to all authenticated users; filtered inside controller/service layers
+  complaintController.getById
+);
+
 router.patch(
   '/:id/assign',
   authenticateJWT,
