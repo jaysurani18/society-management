@@ -1,0 +1,211 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  ADMIN
+  COMMITTEE
+  RESIDENT
+}
+
+enum BillStatus {
+  UNPAID
+  PAID
+}
+
+enum ComplaintStatus {
+  PENDING
+  ASSIGNED
+  RESOLVED
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+}
+
+enum ResidentStatus {
+  OWNER
+  TENANT
+  LEFT
+}
+
+model User {
+  id                      String             @id @default(uuid())
+  email                   String             @unique
+  password                String
+  firstName               String
+  lastName                String
+  phone                   String?
+  isActive                Boolean            @default(true)
+  role                    Role               @default(RESIDENT)
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
+  residentProfile         ResidentProfile?
+  committeeProfile        CommitteeProfile?
+  complaintsRaised        Complaint[]        @relation("RaisedComplaints")
+  complaintsAssigned      Complaint[]        @relation("AssignedComplaints")
+  complaintComments       ComplaintComment[]
+  serviceRequestsRaised   ServiceRequest[]   @relation("RaisedRequests")
+  serviceRequestsAssigned ServiceRequest[]   @relation("AssignedRequests")
+  announcementsCreated    Announcement[]     @relation("CreatedAnnouncements")
+  auditLogs               AuditLog[]
+  collectedPayments       PaymentRecord[]    @relation("CollectedPayments")
+}
+
+model Flat {
+  id        String            @id @default(uuid())
+  number    String
+  block     String
+  floor     Int
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  residents ResidentProfile[]
+  bills     MaintenanceBill[]
+
+  @@unique([number, block])
+}
+
+model ResidentProfile {
+  id        String         @id @default(uuid())
+  userId    String         @unique
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  flatId    String
+  flat      Flat           @relation(fields: [flatId], references: [id], onDelete: Restrict)
+  status    ResidentStatus @default(OWNER)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@index([flatId])
+}
+
+model CommitteeProfile {
+  id          String    @id @default(uuid())
+  userId      String    @unique
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  designation String
+  termStart   DateTime
+  termEnd     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model MaintenanceBill {
+  id            String         @id @default(uuid())
+  flatId        String
+  flat          Flat           @relation(fields: [flatId], references: [id], onDelete: Restrict)
+  amount        Float
+  penalty       Float          @default(0)
+  discount      Float          @default(0)
+  dueDate       DateTime
+  status        BillStatus     @default(UNPAID)
+  billingPeriod String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  paymentRecord PaymentRecord?
+
+  @@unique([flatId, billingPeriod])
+  @@index([flatId])
+  @@index([status])
+}
+
+model PaymentRecord {
+  id            String          @id @default(uuid())
+  billId        String          @unique
+  bill          MaintenanceBill @relation(fields: [billId], references: [id], onDelete: Restrict)
+  amountPaid    Float
+  paymentDate   DateTime        @default(now())
+  paymentMethod String
+  transactionId String          @unique
+  receiptUrl    String?
+  paidByName    String
+  collectedById String?
+  collectedBy   User?           @relation("CollectedPayments", fields: [collectedById], references: [id], onDelete: SetNull)
+  receiptNumber String          @unique
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+}
+
+model Complaint {
+  id           String            @id @default(uuid())
+  title        String
+  description  String
+  category     String
+  imageUrl     String?
+  status       ComplaintStatus   @default(PENDING)
+  raisedById   String
+  raisedBy     User              @relation("RaisedComplaints", fields: [raisedById], references: [id], onDelete: Cascade)
+  assignedToId String?
+  assignedTo   User?             @relation("AssignedComplaints", fields: [assignedToId], references: [id], onDelete: SetNull)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  comments     ComplaintComment[]
+
+  @@index([status])
+  @@index([raisedById])
+}
+
+model ComplaintComment {
+  id          String    @id @default(uuid())
+  complaintId String
+  complaint   Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  authorId    String
+  author      User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  comment     String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([complaintId])
+}
+
+model ServiceRequest {
+  id           String        @id @default(uuid())
+  title        String
+  description  String
+  category     String
+  status       RequestStatus @default(PENDING)
+  feedback     String?
+  raisedById   String
+  raisedBy     User          @relation("RaisedRequests", fields: [raisedById], references: [id], onDelete: Cascade)
+  assignedToId String?
+  assignedTo   User?         @relation("AssignedRequests", fields: [assignedToId], references: [id], onDelete: SetNull)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([status])
+  @@index([raisedById])
+}
+
+model Announcement {
+  id           String   @id @default(uuid())
+  title        String
+  content      String
+  createdById  String
+  createdBy    User     @relation("CreatedAnnouncements", fields: [createdById], references: [id], onDelete: Cascade)
+  targetRole   Role?
+  scheduledFor DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([createdById])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  details   String
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@index([action])
+  @@index([userId])
+}
