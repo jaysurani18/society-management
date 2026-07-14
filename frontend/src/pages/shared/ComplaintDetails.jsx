@@ -172,10 +172,9 @@ export default function ComplaintDetails() {
 
             {(() => {
               if (!complaint.imageUrl) return null;
-              const backendBase = 'http://localhost:5000';
-              const fullImageUrl = complaint.imageUrl.startsWith('http')
+              const fullImageUrl = complaint.imageUrl?.startsWith('http')
                 ? complaint.imageUrl
-                : `${backendBase}/${complaint.imageUrl.replace(/^\/+/, '')}`;
+                : `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/${complaint.imageUrl?.replace(/^\/+/, '')}`;
               return (
                 <div className="border border-slate-200 max-w-md bg-slate-50 p-2">
                   <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider mb-1.5">Attachment Image</p>

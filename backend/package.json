@@ -7,6 +7,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
+    "build": "npm install && npx prisma generate",
+    "db:push": "npx prisma db push",
     "db:reset": "node scripts/db-reset-seed.js"
   },
   "keywords": [],

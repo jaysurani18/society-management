@@ -546,8 +546,9 @@ export default function AdminDashboard() {
   // Helper to build local or external image source URL
   const getImageUrl = (path) => {
     if (!path) return '';
-    if (path.startsWith('http://') || path.startsWith('https://')) return path;
-    return `http://localhost:5000${path}`;
+    if (path.startsWith('http') || path.startsWith('https://')) return path;
+    const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+    return `${base}/${path.replace(/^\/+/, '')}`;
   };
 
   return (
