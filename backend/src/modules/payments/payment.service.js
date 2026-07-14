@@ -16,6 +16,15 @@ export class PaymentService {
         throw new NotFoundError('Maintenance bill not found');
       }
 
+      // Block self-collection of maintenance bills
+      const actorProfile = await tx.residentProfile.findUnique({
+        where: { userId: actorId },
+      });
+
+      if (actorProfile && actorProfile.flatId === bill.flatId) {
+        throw new ForbiddenError('Self-collection error: You cannot record cash payments for your own flat unit');
+      }
+
       // Verify status is explicitly 'UNPAID'
       if (bill.status !== 'UNPAID') {
         throw new BadRequestError('Double-collection error: This maintenance bill has already been paid');

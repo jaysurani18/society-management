@@ -77,36 +77,17 @@ export default function ResidentDashboard() {
   }, []);
 
   // Fetch and show receipt details
-  const handleViewReceipt = async (billId) => {
+  const handleViewReceipt = async (billId, autoPrint = false) => {
     setError('');
     setSuccessMsg('');
     try {
       const res = await api.get(`/bills/${billId}/receipt`);
       const receipt = res.data?.data?.receipt || res.data?.receipt || res.data || null;
-      if (receipt) {
-        const collectedByName = receipt.collectedBy 
-          ? `${receipt.collectedBy.firstName} ${receipt.collectedBy.lastName || ''}`
-          : 'Society Admin';
-
-        alert(`--- PAYMENT RECEIPT ---\nReceipt No: ${receipt.receiptNumber}\nAmount Paid: ₹${receipt.amountPaid.toFixed(2)}\nPayee Name: ${receipt.paidByName}\nCollected By: ${collectedByName}\nDate: ${new Date(receipt.createdAt).toLocaleString()}\nStatus: SETTLED IN CASH`);
-      } else {
-        alert('Receipt details could not be loaded.');
-      }
-    } catch (err) {
-      console.error('Receipt lookup error:', err);
-      alert(err.response?.data?.message || 'Failed to fetch receipt details.');
-    }
-  };
-
-  const handleDownloadReceipt = async (billId) => {
-    try {
-      const res = await api.get(`/bills/${billId}/receipt`);
-      const receipt = res.data?.data?.receipt || res.data?.receipt || null;
       if (!receipt) {
         alert('Receipt details could not be loaded.');
         return;
       }
-      
+
       const flatLabel = receipt.bill?.flat 
         ? `${receipt.bill.flat.block} - ${receipt.bill.flat.number}` 
         : 'Flat Unit';
@@ -114,14 +95,20 @@ export default function ResidentDashboard() {
         ? `${receipt.collectedBy.firstName} ${receipt.collectedBy.lastName || ''}` 
         : 'Society Admin';
 
-      const htmlContent = `
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        alert('Pop-up blocked. Please allow pop-ups to view the receipt.');
+        return;
+      }
+
+      printWindow.document.write(`
         <!DOCTYPE html>
         <html>
         <head>
           <title>Payment Receipt #${receipt.receiptNumber}</title>
           <style>
-            body { font-family: Arial, sans-serif; color: #334155; padding: 40px; margin: 0; background-color: #f8fafc; }
-            .receipt-box { max-width: 600px; margin: auto; padding: 30px; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05); }
+            body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #334155; padding: 40px; margin: 0; background-color: #f8fafc; }
+            .receipt-box { max-width: 600px; margin: 30px auto; padding: 40px; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #ffffff; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05); }
             .header { border-bottom: 2px solid #6366f1; padding-bottom: 20px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center; }
             .title { font-size: 22px; font-weight: bold; color: #4f46e5; margin: 0; }
             .receipt-no { font-size: 12px; color: #64748b; font-family: monospace; }
@@ -131,6 +118,15 @@ export default function ResidentDashboard() {
             .amount-section { background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; border-radius: 6px; text-align: center; margin-bottom: 25px; }
             .amount { font-size: 28px; font-weight: bold; color: #10b981; }
             .footer { border-top: 1px solid #e2e8f0; padding-top: 15px; text-align: center; font-size: 11px; color: #94a3b8; margin-top: 30px; }
+            .actions-bar { display: flex; gap: 12px; margin-top: 25px; }
+            .btn-action { flex: 1; text-align: center; padding: 10px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer; text-decoration: none; }
+            .btn-print { background-color: #4f46e5; color: #ffffff; border: none; }
+            .btn-close { background-color: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+            @media print {
+              .actions-bar, .btn-action { display: none !important; }
+              body { padding: 0; background-color: #ffffff; }
+              .receipt-box { border: none; box-shadow: none; margin: 0; padding: 0; max-width: 100%; }
+            }
           </style>
         </head>
         <body>
@@ -176,26 +172,22 @@ export default function ResidentDashboard() {
               <p>This is a system-generated document confirming cash/online settlement of maintenance dues.</p>
               <p>Society Management System &copy; 2026</p>
             </div>
+
+            <div class="actions-bar">
+              <button class="btn-action btn-print" onclick="window.print()">Print / Save as PDF</button>
+              <button class="btn-action btn-close" onclick="window.close()">Close Window</button>
+            </div>
           </div>
           <script>
-            window.onload = function() { window.print(); }
+            ${autoPrint ? 'window.onload = function() { setTimeout(function() { window.print(); }, 300); }' : ''}
           </script>
         </body>
         </html>
-      `;
-
-      const blob = new Blob([htmlContent], { type: 'text/html' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `Receipt_${receipt.receiptNumber}.html`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      `);
+      printWindow.document.close();
     } catch (err) {
-      console.error('Failed to download receipt:', err);
-      alert('Failed to download receipt document.');
+      console.error('Receipt lookup error:', err);
+      alert(err.response?.data?.message || 'Failed to fetch receipt details.');
     }
   };
 
@@ -441,7 +433,7 @@ export default function ResidentDashboard() {
                                 View Receipt
                               </button>
                               <button
-                                onClick={() => handleDownloadReceipt(bill.id)}
+                                onClick={() => handleViewReceipt(bill.id, true)}
                                 className="text-emerald-600 hover:text-emerald-800 text-xs font-semibold focus:outline-none cursor-pointer"
                               >
                                 Download Receipt
