@@ -1,4 +1,8 @@
-const BASE_URL = 'http://localhost:5000/api/v1';
+let rawBase = process.env.API_BASE_URL || process.env.VITE_API_BASE_URL || 'http://localhost:5000';
+if (!rawBase.endsWith('/api/v1')) {
+  rawBase = rawBase.replace(/\/+$/, '') + '/api/v1';
+}
+const BASE_URL = rawBase;
 
 async function testWorkflow() {
   console.log('🏁 Starting comprehensive end-to-end integration tests...');
