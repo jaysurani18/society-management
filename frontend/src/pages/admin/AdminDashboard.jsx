@@ -707,6 +707,7 @@ export default function AdminDashboard() {
 
       if (res.data?.status === 'success' || res.status === 201) {
         setSuccessMsg(`Cash payment reconciled. Receipt generated for flat unit ${bill.flat?.block} - ${bill.flat?.number}.`);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
         await fetchUnpaidBills(); 
         await fetchMetrics();
         await fetchAuditLogs();
@@ -714,6 +715,7 @@ export default function AdminDashboard() {
     } catch (err) {
       console.error('Reconciliation settlement failed:', err);
       setError(err.response?.data?.message || 'Failed to process cash settlement.');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
