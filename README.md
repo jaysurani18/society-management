@@ -1,122 +1,129 @@
-# Society Management System (Backend API)
+# 🏢 Society Management System
 
-A production-grade, multi-tenant residential society management platform built with Node.js, Express, and PostgreSQL. The system implements robust Role-Based Access Control (RBAC), database transaction-safe financial ledger mechanics, secure multi-part cloud media streaming, and an immutable system-wide append-only audit log trail.
+A production-grade, full-stack residential society management platform designed to simplify administration, automate financial ledger invoicing, and streamline communication between admins, committee members, and residents. 
 
-## 🚀 Key Architectural Strengths
-
-*   **Decoupled Architecture & Centralized Gateway:** Built using native ES Modules with all 12 isolated feature domains aggregated behind a unified `v1` master router pathing structure, ensuring clean version boundaries.
-*   **Asset-Centric Invoicing:** Maintenance bills are structurally anchored to the physical property asset (`Flat`) rather than individual user accounts. This prevents historical ledger fragmentation when residents move or profiles change.
-*   **Race-Condition Safe Cash Reconciliation:** Implements an authenticated manual cash collection workflow enclosed within strict isolated database transactions (`prisma.$transaction`). Includes automatic receipt number generation, row-level checking, and absolute protection against double-collection flaws.
-*   **Cloud Media Pipelines:** Multi-part file handling utilizes a non-volatile streaming memory buffer pattern (`multer`) that routes binary streams securely to Cloudinary, ensuring zero reliance on local disk storage.
-*   **Immutable Append-Only Audit Trail:** Critical system mutations instantly commit structured audit logs tracking execution states, context parameters, and actor IDs for complete tracking transparency.
+Built with **React (Vite)** on the frontend, **Node.js (Express)** on the backend, and **PostgreSQL (via Neon)** as the database engine.
 
 ---
 
 ## 🛠️ Technology Stack
 
-*   **Runtime:** Node.js (v18+) with native ES Modules configuration (`"type": "module"`)
-*   **Framework:** Express.js with custom centralized Layered Service-Repository architecture
-*   **Database Engine:** PostgreSQL
-*   **Data Access Layer:** Prisma ORM with automated structural migrations
-*   **Payload Validation:** Zod Schema-first structural sanitizers
-*   **Security Context:** JWT authentication, custom multi-role RBAC middleware, Bcrypt.js (10 hashing rounds), Helmet header guards, and CORS isolation
-*   **System Tracking:** Winston structured file/console logging logger with Morgan HTTP streaming
+### 💻 Frontend (Client)
+*   **Core:** React.js, Vite (Fast dev server & build compiler)
+*   **Styling:** Vanilla TailwindCSS with a flat, high-contrast, professional design system (border-slate-200, clean borders, zero soft drop-shadows)
+*   **Icons:** Lucide React
+*   **API Client:** Axios (Centralized API client setup with request/response interceptors to automatically forward JWT session tokens)
+
+### ⚙️ Backend (Server API)
+*   **Runtime:** Node.js (v18+) with native ES Modules
+*   **Framework:** Express.js utilizing a clean Domain-Driven, Layered Controller-Service architecture
+*   **Database Engine:** PostgreSQL (Hosted on Neon serverless postgres)
+*   **ORM:** Prisma Client with relational constraints
+*   **Payload Validation:** Zod Schema-first structural validators
+*   **Security:** JWT session tokens, Bcrypt.js (10 hashing rounds) for passwords, Helmet headers, CORS policies, and multi-role RBAC middleware
 
 ---
 
-## 📁 System Repository Architecture
+## 📁 System Architecture Directory Map
 
 ```text
-src/
-├── app.js                   # Application bootstrapper & global config
-├── server.js                # Process execution & graceful shutdown hooks
-├── config/                  # Third-party SDK client setups (Prisma, Cloudinary)
-├── middleware/              # Authentication, error isolation, and upload filters
-├── routes/                  # Central API V1 Gateway routing bundle
-├── utils/                   # Shared custom tracking errors and logging engines
-└── modules/                 # Modular Domain Directories
-    ├── announcements/       # Notice board controls
-    ├── audit/               # Read-only audit trail viewer
-    ├── auth/                # Security session token issuance
-    ├── bills/               # Automated batch invoicing and penalties
-    ├── committee/           # Designation assignment transactions
-    ├── complaints/          # Conversation threads & cloud attachments
-    ├── dashboard/           # Dynamic role-tailored real-time summaries
-    ├── flats/               # Property asset configuration
-    ├── payments/            # Cash ledger reconciliation engine
-    ├── reports/             # Analytics throughput and aggregation logic
-    ├── residents/           # Onboarding, listings, and soft-deletes
-    └── service-requests/    # Lifecycle state machine workflows
+society-management/
+├── backend/                  # RESTful API Server Engine
+│   ├── prisma/               # Schema models & migrations
+│   └── src/
+│       ├── config/           # Database & cloud storage configurations
+│       ├── middleware/       # Authentication, error, and file-upload filters
+│       ├── routes/           # Routing gateways
+│       └── modules/          # Domain Feature Directories (auth, bills, users, etc.)
+└── frontend/                 # React SPA Client
+    ├── public/               # Static assets
+    └── src/
+        ├── components/       # Shared UI components
+        ├── context/          # Auth state managers
+        ├── pages/            # Role-based dashboard interfaces
+        ├── services/         # Axios API connection layers
+        └── routes/           # React router guards & page mapping
 ```
 
 ---
 
-## ⚙️ Environment Configuration
+## ⚙️ Local Setup & Run Guide
 
-Create a `.env` file inside the root directory and populate the variables listed below:
+### 1. Database Setup
+Confirm you have a PostgreSQL database connection string ready (e.g. from Neon or a local instance). 
 
+### 2. Configure Backend Environment
+Create a `.env` file inside the `backend/` directory:
 ```env
 PORT=5000
-DATABASE_URL="postgresql://<user>:<password>@localhost:5432/society_management?schema=public"
-JWT_SECRET="your_core_access_token_generation_key_string"
-CLOUDINARY_CLOUD_NAME="your_cloudinary_cloud_space_name"
-CLOUDINARY_API_KEY="your_cloudinary_credential_api_key"
-CLOUDINARY_API_SECRET="your_cloudinary_secure_secret_hash"
+DATABASE_URL="postgresql://<user>:<password>@<host>:<port>/neondb?sslmode=require"
+JWT_SECRET="your-jwt-secure-secret-key-phrase"
+CLOUDINARY_CLOUD_NAME="your-cloudinary-cloud-name"
+CLOUDINARY_API_KEY="your-cloudinary-api-key"
+CLOUDINARY_API_SECRET="your-cloudinary-api-secret"
 ```
 
----
-
-## ⚙️ Local Installation & Launch Guide
-
-### 1. Initialize System Workspace
-
-Clone this repository to your local computer, open your terminal context inside the backend target directory, and pull down the structural dependencies:
-
+### 3. Initialize & Start Backend API
 ```bash
+cd backend
 npm install
+npx prisma db push      # Push schema models directly to database
+npx prisma generate     # Regenerate Prisma Client
+npm run dev             # Start server on http://localhost:5000
 ```
 
-### 2. Run Database Structure Migrations
+### 4. Configure Frontend Environment
+Create a `.env` file inside the `frontend/` directory:
+```env
+VITE_API_BASE_URL="http://localhost:5000/api/v1"
+```
 
-Confirm your local PostgreSQL server is actively running, then deploy the structural schema files and populate local clients using the migration command:
-
+### 5. Initialize & Start Frontend Client
 ```bash
-npx prisma migrate dev --name structural_schema_baseline
+cd ../frontend
+npm install
+npm run dev             # Start dev client on http://localhost:5173
 ```
-
-### 3. Initialize Server Runtime
-
-Boot the hot-reloading native development node application:
-
-```bash
-npm run dev
-```
-
-The application will boot and bind securely to port `5000`.
 
 ---
 
-## 🔏 Core API Interface Map
+## 🔏 Role-Based Access Control (RBAC) Matrix
 
-| Method | Endpoint | Authorized Roles | Functional Description |
-| --- | --- | --- | --- |
-| `POST` | `/api/v1/auth/register` | Public | Initial profile configuration |
-| `POST` | `/api/v1/auth/login` | Public | Emits access tokens |
-| `POST` | `/api/v1/flats` | `ADMIN` | Deploys apartment unit rows |
-| `POST` | `/api/v1/residents` | `ADMIN` | Onboards profile with transaction safety |
-| `GET` | `/api/v1/residents` | `ADMIN`, `COMMITTEE` | Paginated index with contains filters |
-| `DELETE` | `/api/v1/residents/:id` | `ADMIN` | Deactivates profile and marks state `LEFT` |
-| `POST` | `/api/v1/complaints` | `RESIDENT` | Streams binary image text attachments |
-| `PATCH` | `/api/v1/complaints/:id/status` | `ADMIN`, `COMMITTEE` | Advances conversational issue tokens |
-| `POST` | `/api/v1/bills/batch-generate` | `ADMIN` | Automates baseline flat bill runs |
-| `POST` | `/api/v1/bills/:id/record-cash` | `ADMIN`, `COMMITTEE` | Resolves unpaid cash ledger markers |
-| `GET` | `/api/v1/dashboard/summary` | All (Authenticated) | Returns role-tailored statistics |
-| `GET` | `/api/v1/audit-logs` | `ADMIN` | Pulls append-only execution tables |
+Every API endpoint and client page routing boundary is guarded by authentication. Under **Security Best Practices**, public registration and forgot/reset password views have been removed:
+*   **Admins** register resident profiles directly inside the Occupancy Directory and can trigger secure temporary password resets.
+*   **Residents & Committee Members** manage credentials and change passwords from their secure profile settings page.
+
+| Functional Capabilities | Admin | Committee Member | Resident |
+| :--- | :---: | :---: | :---: |
+| **Manage Residents / Onboard Flat Units** | ✅ | ❌ | ❌ |
+| **Deactivate Resident Profile (State: LEFT)** | ✅ | ❌ | ❌ |
+| **Promote Residents / Demote Committee** | ✅ | ❌ | ❌ |
+| **Publish Notice Board Bulletins** | ✅ | ✅ | ❌ |
+| **Delete Notice Board Bulletins** | ✅ | ✅ | ❌ |
+| **View notice bulletins & Announcements** | ✅ | ✅ | ✅ |
+| **Batch Generate Monthly Bills** | ✅ | ✅ | ❌ |
+| **Record Cash Settlement / Reconcile Dues** | ✅ | ✅ *(Other Flats Only)* | ❌ |
+| **Apply Late Penalty Fees** | ✅ | ❌ | ❌ |
+| **Submit Service Requests / File Complaints** | ❌ | ❌ | ✅ |
+| **Review & Approve/Reject Service Requests** | ✅ | ✅ | ❌ |
+| **Assign & Resolve Resident Complaints** | ✅ | ✅ | ❌ |
+| **Download Vector PDF Payment Receipts** | ✅ | ✅ | ✅ |
+| **View Append-Only System Audit Logs** | ✅ | ❌ | ❌ |
 
 ---
 
-## 💡 Key Architectural Defenses (Interview Talking Points)
+## 📖 Complete API Documentation & Testing
 
-1. **How System Integrity is Maintained During Resident Departure:** The platform completely isolates the `User` identity from the structural property entity (`Flat`). When a resident transitions out, the application executes a safe soft-delete that updates their user profile state flag to `LEFT` and marks `isActive: false` within a transaction. Historical ledger rows and matching cash tracking payments remain perfectly preserved against the un-altered `Flat` asset id.
-2. **Elimination of IDOR (Insecure Direct Object Reference) Vectors:** The service layers do not accept vulnerable client-provided client identifiers when performing private operations. Every resident lookup command checks the token identity records parsed from the `req.user` JWT context, completely blocking malicious actors from tampering with query inputs to inspect other properties' bills or private complaint files.
-3. **Double-Collection Avoidance Under Concurrent Strikes:** The payment settlement framework handles actions inside database transactions. When an administrative officer commits a cash payment against an open invoice, the record row checks that status values explicitly read `UNPAID`. Any concurrent attempt to click or clear the item throws a validation termination error, maintaining accurate balance sheets.
+For the full RESTful API route list, payloads, validation schemas, and success responses, please refer to the detailed [API Documentation](file:///d:/Durgesh/Personal%20Projects/society-management/API_DOCUMENTATION.md) file.
+
+Additionally, a pre-configured [Postman Collection](file:///d:/Durgesh/Personal%20Projects/society-management/postman_collection.json) is available in the root directory for direct testing.
+
+---
+
+## 💡 Key Architectural Defenses (Technical Highlights)
+
+*   **Non-Blocking Batch Invoicing:** When running batch maintenance bills for a month, the system automatically checks for duplicates. Rather than failing the entire transaction, it **skips** already-invoiced units and successfully bills any new resident flats, returning a count of created and skipped records.
+*   **Cash Settlement Self-Collection Block:** To prevent conflicts of interest, the cash collection system runs a database-level validation checking the collector's ID. If a committee member attempts to record cash settlement on a bill belonging to their own flat, the system throws a `403 Forbidden` self-collection violation.
+*   **Print-to-PDF Vector Receipt Viewer:** Eliminates third-party client canvas generation. Viewing or downloading paid invoice receipts opens a print-friendly document in a new tab and hooks directly into the browser's native print-to-PDF dialog, downloading clean vector PDFs.
+*   **Cloud Media Streaming Buffer:** Multi-part complaint attachments stream through a RAM memory buffer directly to Cloudinary, ensuring zero persistent local disk writes for files.
+*   **Audit Trail:** Critical actions (logins, updates, billing runs, deactivations) automatically commit a structured row to the read-only, append-only `AuditLog` table.

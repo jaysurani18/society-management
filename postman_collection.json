@@ -1,0 +1,838 @@
+{
+	"info": {
+		"_postman_id": "809e1e49-c01a-4129-9c4c-88efa745c1b2",
+		"name": "Society Management System API",
+		"description": "Production-ready Postman collection for testing the Society Management System backend APIs. Includes endpoints for Authentication, Resident Directories, Billing Automations, Cash Reconciliation, Announcements, Complaints, and Service Requests.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Login User",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"admin@society.com\",\n  \"password\": \"admin123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/login",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
+						},
+						"description": "Exchanges email and password credentials for an access session JWT."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Current Session User",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwt_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth/me",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"me"
+							]
+						},
+						"description": "Fetches current session user information from the JWT context."
+					},
+					"response": []
+				},
+				{
+					"name": "Change Password",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwt_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"oldPassword\": \"admin123\",\n  \"newPassword\": \"adminSecure123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/change-password",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"change-password"
+							]
+						},
+						"description": "Allows logged-in users to update their access password."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Dashboard",
+			"item": [
+				{
+					"name": "Get Dashboard Summary Stats",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwt_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/dashboard/summary",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"dashboard",
+								"summary"
+							]
+						},
+						"description": "Retrieves real-time widgets tailored dynamically by user role."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Residents & Users",
+			"item": [
+				{
+					"name": "Onboard Resident Profile",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwt_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"resident@society.com\",\n  \"firstName\": \"Jay\",\n  \"lastName\": \"Surani\",\n  \"phone\": \"9876543210\",\n  \"flatId\": \"{{flat_id_placeholder}}\",\n  \"status\": \"OWNER\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/residents",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"residents"
+							]
+						},
+						"description": "Registers a new resident profile and links it to an allotted Flat."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Residents Directory",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwt_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/residents?page=1&limit=10&search=&status=",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"residents"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								},
+								{
+									"key": "search",
+									"value": ""
+								},
+								{
+									"key": "status",
+									"value": ""
+								}
+							]
+						},
+						"description": "Fetches paginated resident list with search and tenancy filters."
+					},
+					"response": []
+				},
+				{
+					"name": "Deactivate Resident",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwt_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/residents/{{resident_id_placeholder}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"residents",
+								"{{resident_id_placeholder}}"
+							]
+						},
+						"description": "Soft-deactivates resident (marking role state as LEFT)."
+					},
+					"response": []
+				},
+				{
+					"name": "Admin Reset User Password",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwt_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"newPassword\": \"temporaryPass123\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/users/{{user_id_placeholder}}/reset-password",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"users",
+								"{{user_id_placeholder}}",
+								"reset-password"
+							]
+						},
+						"description": "Allows Admin to generate a new password reset token for a resident."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Maintenance & Invoices",
+			"item": [
+				{
+					"name": "Batch Generate Invoices",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwt_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"amount\": 2500,\n  \"billingMonth\": \"2026-07\",\n  \"dueDate\": \"2026-08-05\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/bills/batch-generate",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"bills",
+								"batch-generate"
+							]
+						},
+						"description": "Generates maintenance invoices for all occupied flats (skipping existing ones)."
+					},
+					"response": []
+				},
+				{
+					"name": "Add Late Fee Penalty",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwt_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"penaltyAmount\": 250\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/bills/{{bill_id_placeholder}}/penalty",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"bills",
+								"{{bill_id_placeholder}}",
+								"penalty"
+							]
+						},
+						"description": "Appends late fee penalty charge to an unpaid invoice."
+					},
+					"response": []
+				},
+				{
+					"name": "Record Cash Settlement",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwt_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"amountPaid\": 2750,\n  \"paidByName\": \"Jay Surani\",\n  \"discount\": 0\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/bills/{{bill_id_placeholder}}/record-cash",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"bills",
+								"{{bill_id_placeholder}}",
+								"record-cash"
+							]
+						},
+						"description": "Reconciles unpaid bill with cash. Prevented for user's own flat."
+					},
+					"response": []
+				},
+				{
+					"name": "Fetch Payment Receipt",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwt_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/bills/{{bill_id_placeholder}}/receipt",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"bills",
+								"{{bill_id_placeholder}}",
+								"receipt"
+							]
+						},
+						"description": "Fetches payment receipt metadata."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Notice Board",
+			"item": [
+				{
+					"name": "Publish Notice Bulletin",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwt_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Water Pipeline Maintenance\",\n  \"content\": \"Water supply will be offline from 10 AM to 2 PM on Thursday for pipeline upgrades.\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/announcements",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"announcements"
+							]
+						},
+						"description": "Broadcasts a notice bulletin to the public board."
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Notice Bulletins",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwt_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/announcements",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"announcements"
+							]
+						},
+						"description": "Fetches notices history feed."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Notice Bulletin",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwt_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/announcements/{{notice_id_placeholder}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"announcements",
+								"{{notice_id_placeholder}}"
+							]
+						},
+						"description": "Removes a notice bulletin from the registry."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Complaints & Service Requests",
+			"item": [
+				{
+					"name": "Raise Complaint Ticket",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwt_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "title",
+									"value": "Elevator breakdown in block A",
+									"type": "text"
+								},
+								{
+									"key": "description",
+									"value": "Elevator stuck on 3rd floor, emergency alarm not working.",
+									"type": "text"
+								},
+								{
+									"key": "category",
+									"value": "General",
+									"type": "text"
+								},
+								{
+									"key": "image",
+									"description": "Cloudinary multi-part attachment",
+									"type": "file",
+									"src": []
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/complaints",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"complaints"
+							]
+						},
+						"description": "Submits a new complaint ticket with optional file attachments."
+					},
+					"response": []
+				},
+				{
+					"name": "Assign Complaint",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwt_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"assignedToId\": \"{{committee_id_placeholder}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/complaints/{{complaint_id_placeholder}}/assign",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"complaints",
+								"{{complaint_id_placeholder}}",
+								"assign"
+							]
+						},
+						"description": "Routes complaint ticket to a committee member."
+					},
+					"response": []
+				},
+				{
+					"name": "Resolve Complaint Ticket",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwt_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"RESOLVED\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/complaints/{{complaint_id_placeholder}}/status",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"complaints",
+								"{{complaint_id_placeholder}}",
+								"status"
+							]
+						},
+						"description": "Marks complaint ticket as RESOLVED."
+					},
+					"response": []
+				},
+				{
+					"name": "Raise Service Request",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwt_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Water Leakage in Kitchen\",\n  \"description\": \"Sink pipes leaking under the cabinet.\",\n  \"category\": \"Plumbing\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/service-requests",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"service-requests"
+							]
+						},
+						"description": "Raises service request ticket."
+					},
+					"response": []
+				},
+				{
+					"name": "Review Service Request",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwt_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PATCH",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"status\": \"APPROVED\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/service-requests/{{request_id_placeholder}}/review",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"service-requests",
+								"{{request_id_placeholder}}",
+								"review"
+							]
+						},
+						"description": "Approves or Rejects a service request ticket."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Audit Logs",
+			"item": [
+				{
+					"name": "Get Audit Logs Registry",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{jwt_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/audit-logs?page=1&limit=10",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"audit-logs"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								}
+							]
+						},
+						"description": "Fetches system audit trail (Admin-only)."
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:5000/api/v1",
+			"type": "string"
+		},
+		{
+			"key": "jwt_token",
+			"value": "your_access_token_here",
+			"type": "string"
+		}
+	]
+}
