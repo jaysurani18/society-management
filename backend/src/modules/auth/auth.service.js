@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import prisma from '../../config/prisma.js';
-import { BadRequestError, UnauthorizedError } from '../../utils/customErrors.js';
+import { BadRequestError, UnauthorizedError, NotFoundError } from '../../utils/customErrors.js';
 
 export class AuthService {
   /**
@@ -109,5 +109,133 @@ export class AuthService {
       },
       token,
     };
+  }
+
+  /**
+   * Handle generating a reset token for a password reset flow
+   */
+  async forgotPassword(email, ipAddress) {
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      throw new NotFoundError('No user found with this email address');
+    }
+
+    const jwtSecret = process.env.JWT_SECRET || 'fallback_secret_key_change_me_in_prod';
+    const resetToken = jwt.sign(
+      { email: user.email, purpose: 'password-reset' },
+      jwtSecret,
+      { expiresIn: '15m' }
+    );
+
+    // Append Audit Log
+    await prisma.auditLog.create({
+      data: {
+        userId: user.id,
+        action: 'PASSWORD_FORGOT',
+        details: JSON.stringify({
+          email: user.email,
+          message: 'Password reset token generated',
+        }),
+        ipAddress: ipAddress || null,
+      },
+    });
+
+    return { resetToken };
+  }
+
+  /**
+   * Reset user password using generated token
+   */
+  async resetPassword(token, newPassword, ipAddress) {
+    let email;
+    const jwtSecret = process.env.JWT_SECRET || 'fallback_secret_key_change_me_in_prod';
+    
+    try {
+      const decoded = jwt.verify(token, jwtSecret);
+      if (decoded.purpose !== 'password-reset') {
+        throw new BadRequestError('Invalid reset token purpose');
+      }
+      email = decoded.email;
+    } catch (err) {
+      throw new BadRequestError('Invalid or expired password reset token');
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      throw new NotFoundError('User not found');
+    }
+
+    const saltRounds = 10;
+    const passwordHash = await bcrypt.hash(newPassword, saltRounds);
+
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { email },
+        data: { password: passwordHash },
+      });
+
+      // Append Audit Log
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: 'PASSWORD_RESET',
+          details: JSON.stringify({
+            email: user.email,
+            message: 'User password reset completed successfully',
+          }),
+          ipAddress: ipAddress || null,
+        },
+      });
+    });
+
+    return { success: true };
+  }
+
+  /**
+   * Change user password (authenticated)
+   */
+  async changePassword(userId, currentPassword, newPassword, ipAddress) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundError('User not found');
+    }
+
+    const isPasswordValid = await bcrypt.compare(currentPassword, user.password);
+    if (!isPasswordValid) {
+      throw new BadRequestError('Incorrect current password');
+    }
+
+    const saltRounds = 10;
+    const passwordHash = await bcrypt.hash(newPassword, saltRounds);
+
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: userId },
+        data: { password: passwordHash },
+      });
+
+      // Append Audit Log
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: 'PASSWORD_CHANGE',
+          details: JSON.stringify({
+            message: 'User password changed successfully',
+          }),
+          ipAddress: ipAddress || null,
+        },
+      });
+    });
+
+    return { success: true };
   }
 }

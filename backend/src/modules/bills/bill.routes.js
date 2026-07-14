@@ -31,4 +31,10 @@ router.get(
   billController.getById
 );
 
+router.get(
+  '/:id/receipt',
+  authenticateJWT, // Ownership checks verified inside service layer
+  billController.getReceipt
+);
+
 export default router;

@@ -29,8 +29,7 @@ export class BillService {
         });
 
         if (existing) {
-          skippedCount++;
-          continue;
+          throw new BadRequestError(`Billing invoice already generated for flat ${flat.number} in period ${input.billingMonth}`);
         }
 
         const bill = await tx.maintenanceBill.create({
@@ -205,5 +204,50 @@ export class BillService {
     }
 
     return bill;
+  }
+
+  /**
+   * Fetch payment receipt details associated with a bill
+   */
+  async getBillReceipt(id, actorId, actorRole) {
+    const bill = await prisma.maintenanceBill.findUnique({
+      where: { id },
+      include: {
+        flat: true,
+        paymentRecord: {
+          include: {
+            collectedBy: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!bill) {
+      throw new NotFoundError('Maintenance bill not found');
+    }
+
+    // Resident ownership verification
+    if (actorRole === 'RESIDENT') {
+      const profile = await prisma.residentProfile.findUnique({
+        where: { userId: actorId },
+      });
+
+      if (!profile || profile.flatId !== bill.flatId) {
+        throw new ForbiddenError('You do not have access to view this receipt');
+      }
+    }
+
+    if (!bill.paymentRecord) {
+      throw new BadRequestError('No payment record or receipt exists for this bill');
+    }
+
+    return bill.paymentRecord;
   }
 }

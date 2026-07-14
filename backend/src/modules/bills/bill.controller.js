@@ -94,4 +94,26 @@ export class BillController {
       next(error);
     }
   };
+
+  /**
+   * Fetch payment receipt details associated with a bill
+   */
+  getReceipt = async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const actorId = req.user?.id;
+      const actorRole = req.user?.role;
+
+      const receipt = await this.billService.getBillReceipt(id, actorId, actorRole);
+
+      res.status(200).json({
+        status: 'success',
+        data: {
+          receipt,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
 }

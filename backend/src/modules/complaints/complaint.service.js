@@ -1,4 +1,4 @@
-import { v2 as cloudinary } from 'cloudinary';
+import cloudinary from '../../config/cloudinary.js';
 import prisma from '../../config/prisma.js';
 import { BadRequestError, NotFoundError, ForbiddenError } from '../../utils/customErrors.js';
 
