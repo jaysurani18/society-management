@@ -1,3 +1,44 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Design System Tokens Overrides */
+.bg-brand-navy {
+  background-color: #1B2340 !important;
+}
+.hover\:bg-brand-navy-hover:hover {
+  background-color: #1E2749 !important;
+}
+.bg-brand-navy-active {
+  background-color: #26315C !important;
+}
+.bg-brand-cream {
+  background-color: #FAF8F5 !important;
+}
+body {
+  background-color: #FAF8F5 !important;
+}
+.bg-brand-gold {
+  background-color: #C5A880 !important;
+}
+.bg-brand-brick {
+  background-color: #A83232 !important;
+}
+.text-brand-navy {
+  color: #1B2340 !important;
+}
+.text-brand-gold {
+  color: #C5A880 !important;
+}
+.border-l-brand-gold {
+  border-left-color: #C5A880 !important;
+}
+.font-serif {
+  font-family: 'Playfair Display', serif !important;
+}
+.font-mono {
+  font-family: 'JetBrains Mono', monospace !important;
+}
+.font-sans {
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+}

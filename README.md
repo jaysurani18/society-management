@@ -232,29 +232,49 @@ To verify the platform's advanced behaviors locally, run these quick functional 
 
 ## 📸 Interface Screenshots & Previews
 
-### 👤 1. Admin Control Panel
-*   **Overview & Metrics Chart (Tab 1):**
-    ![Admin Dashboard Metrics](./assets/admin_overview.png)
-*   **Resident Directory & Committee Grid (Tab 2):**
-    ![Resident & Committee Directory](./assets/admin_directory.png)
-*   **Batch Monthly Invoicing Form & Bills (Tab 3):**
-    ![Batch Invoicing](./assets/admin_billing.png)
-*   **Notice Board Broadcasts & Registry (Tab 4):**
-    ![Notices Management](./assets/admin_notices.png)
-*   **System Activity Append-Only Logs (Tab 5):**
-    ![Audit Logs Timeline](./assets/admin_audit_logs.png)
+### 👤 1. Admin Control Panel (Command Center)
+*   **Command Center Overview Dashboard:**
+    ![Admin Command Center Overview](./assets/admin1.png)
+*   **Resident Directory & Committee Assignments:**
+    ![Resident & Committee Directory](./assets/admin2.png)
+*   **Batch Monthly Maintenance Invoicing:**
+    ![Batch Invoicing](./assets/admin3.png)
+*   **Notice Board Broadcasts & Registry:**
+    ![Notices Management](./assets/admin4.png)
+*   **System Activity Append-Only Logs:**
+    ![Audit Logs Timeline](./assets/admin5.png)
+*   **Financial Collection Analytics & Reports:**
+    ![Financial Analytics](./assets/admin6.png)
+*   **Flat Inventory Configuration & Registrations:**
+    ![Flat Inventory Configuration](./assets/admin7.png)
+*   **Onboard Property Units (Flat Registration Form):**
+    ![Flat Onboarding Form](./assets/admin8.png)
 
 ### 👥 2. Committee Workspace Panel
-*   **Assigned Complaints & Service Requests (Tab 1):**
-    ![Committee Tasks](./assets/committee_tasks.png)
-*   **Society Bulletins Board Feed (Tab 2):**
-    ![Committee Notice Board](./assets/committee_notices.png)
-*   **Financial Dues Ledger & Cash Collection (Tab 3):**
-    ![Committee Financial Settlement](./assets/committee_finance.png)
+*   **Committee Workspace Command Center:**
+    ![Committee Dashboard Overview](./assets/committee1.png)
+*   **Assigned Service Requests & Tickets Desk:**
+    ![Committee Task Desk](./assets/committee2.png)
+*   **Society Bulletins Board Feed:**
+    ![Committee Notice Board](./assets/committee3.png)
+*   **Financial Dues Ledger & Cash Collection:**
+    ![Committee Financial Settlement](./assets/committee4.png)
+*   **Interactive Discussion Thread (Service/Complaints):**
+    ![Committee Thread Discussion](./assets/CommitteeThreadPage.png)
 
 ### 🏠 3. Resident Portal Dashboard
-*   **Dashboard Summary & Bills Ledger:**
-    ![Resident Portal Dashboard](./assets/resident_overview.png)
-*   **Raise Complaint & Cloud Attachment Modal:**
-    ![File Complaint Upload Dialog](./assets/resident_raise_complaint.png)
+*   **Resident Command Center Grid:**
+    ![Resident Command Center](./assets/resident1.png)
+*   **Consolidated Bills & Payments Ledger:**
+    ![Resident Bills and Payments](./assets/resident2.png)
+*   **Service Request Desk & Tickets:**
+    ![Resident Service Requests](./assets/resident3.png)
+*   **Lodged Personal Complaints Registry:**
+    ![Resident Complaints](./assets/resident4.png)
+*   **Interactive Complaint Discussion Thread:**
+    ![Resident Complaint Thread](./assets/ResidentComplaintPage.png)
+*   **Announcements Notice Board Feed:**
+    ![Resident Notices](./assets/resident5.png)
+*   **Personal Profile & Security Settings:**
+    ![Resident Profile Settings](./assets/resident6.png)
 

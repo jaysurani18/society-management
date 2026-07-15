@@ -1,12 +1,60 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
 import api from '../../services/api.js';
-import { Users, LogOut, Wrench, FileText, Check, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Users, LogOut, Wrench, FileText, Check, AlertCircle, CheckCircle2, DollarSign } from 'lucide-react';
+import ConfirmModal from '../../components/ConfirmModal.jsx';
+import DashboardLayout from '../../components/design-system/DashboardLayout.jsx';
+import Button from '../../components/design-system/Button.jsx';
 
 export default function CommitteeDashboard() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+
+  // Custom Popups State
+  const [modal, setModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmLabel: 'Confirm',
+    cancelLabel: 'Cancel',
+    onConfirm: null,
+    isAlert: false,
+    type: 'default'
+  });
+
+  const triggerConfirm = (title, message, onConfirm, type = 'default', confirmLabel = 'Confirm') => {
+    setModal({
+      isOpen: true,
+      title,
+      message,
+      confirmLabel,
+      cancelLabel: 'Cancel',
+      onConfirm: () => {
+        onConfirm();
+        closeModal();
+      },
+      isAlert: false,
+      type
+    });
+  };
+
+  const triggerAlert = (title, message, type = 'default') => {
+    setModal({
+      isOpen: true,
+      title,
+      message,
+      confirmLabel: 'OK',
+      cancelLabel: '',
+      onConfirm: closeModal,
+      isAlert: true,
+      type
+    });
+  };
+
+  const closeModal = () => {
+    setModal(prev => ({ ...prev, isOpen: false }));
+  };
 
   // Data States
   const [requests, setRequests] = useState([]);
@@ -42,8 +90,12 @@ export default function CommitteeDashboard() {
   const [notices, setNotices] = useState([]);
   const [loadingNotices, setLoadingNotices] = useState(false);
 
-  // Layout Tab State
-  const [currentTab, setCurrentTab] = useState('tickets'); // options: 'tickets', 'finance', 'notices'
+  // Layout Tab State mapped to URL pathing
+  const location = useLocation();
+  let currentTab = 'overview';
+  if (location.pathname.includes('/committee/tickets')) currentTab = 'tickets';
+  else if (location.pathname.includes('/committee/finance')) currentTab = 'finance';
+  else if (location.pathname.includes('/committee/notices')) currentTab = 'notices';
 
   // Fetch initial service requests
   const fetchRequests = async () => {
@@ -177,35 +229,39 @@ export default function CommitteeDashboard() {
   };
 
   // Handle Real Cash Settlement (Record Cash Settlement)
-  const handleRecordCashSettlement = async (bill) => {
-    if (!window.confirm(`Record manual cash settlement of ₹${(bill.amount + bill.penalty - bill.discount).toFixed(2)} for flat unit ${bill.flat?.block} - ${bill.flat?.number}?`)) {
-      return;
-    }
+  const handleRecordCashSettlement = (bill) => {
+    const totalAmount = bill.amount + bill.penalty - bill.discount;
+    triggerConfirm(
+      'Confirm Cash Settlement',
+      `Record manual cash settlement of ₹${totalAmount.toFixed(2)} for flat unit ${bill.flat?.block} - ${bill.flat?.number}?`,
+      async () => {
+        setError('');
+        setSuccessMsg('');
+        try {
+          const payeeName = bill.flat 
+            ? `Resident (Flat ${bill.flat.block} - ${bill.flat.number})`
+            : 'Resident Flat';
 
-    setError('');
-    setSuccessMsg('');
-    try {
-      const totalAmount = bill.amount + bill.penalty - bill.discount;
-      const payeeName = bill.flat 
-        ? `Resident (Flat ${bill.flat.block} - ${bill.flat.number})`
-        : 'Resident Flat';
+          const res = await api.post(`/bills/${bill.id}/record-cash`, {
+            amountPaid: totalAmount,
+            paidByName: payeeName,
+            discount: 0,
+          });
 
-      const res = await api.post(`/bills/${bill.id}/record-cash`, {
-        amountPaid: totalAmount,
-        paidByName: payeeName,
-        discount: 0,
-      });
-
-      if (res.data?.status === 'success' || res.status === 201) {
-        setSuccessMsg(`Cash payment reconciled. Receipt generated for flat unit ${bill.flat?.block} - ${bill.flat?.number}.`);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-        await fetchUnpaidBills(); // Re-fetch unpaid dues to clear paid rows
-      }
-    } catch (err) {
-      console.error('Reconciliation settlement failed:', err);
-      setError(err.response?.data?.message || 'Failed to process cash settlement.');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
+          if (res.data?.status === 'success' || res.status === 201) {
+            setSuccessMsg(`Cash payment reconciled. Receipt generated for flat unit ${bill.flat?.block} - ${bill.flat?.number}.`);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            await fetchUnpaidBills(); // Re-fetch unpaid dues to clear paid rows
+          }
+        } catch (err) {
+          console.error('Reconciliation settlement failed:', err);
+          setError(err.response?.data?.message || 'Failed to process cash settlement.');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      },
+      'warning',
+      'Record Cash Dues'
+    );
   };
 
   // Handle publishing notice
@@ -253,40 +309,50 @@ export default function CommitteeDashboard() {
     }
   };
 
-  const handleDeleteNotice = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this notice/announcement?')) {
-      return;
-    }
-    try {
-      const res = await api.delete(`/announcements/${id}`);
-      if (res.status === 200 || res.data?.status === 'success') {
-        alert('Notice deleted successfully.');
-        await fetchNotices();
-      }
-    } catch (err) {
-      console.error('Failed to delete notice:', err);
-      alert(err.response?.data?.message || 'Failed to delete notice.');
-    }
+  const handleDeleteNotice = (id) => {
+    triggerConfirm(
+      'Delete Notice',
+      'Are you sure you want to delete this notice/announcement? This action is permanent.',
+      async () => {
+        try {
+          const res = await api.delete(`/announcements/${id}`);
+          if (res.status === 200 || res.data?.status === 'success') {
+            triggerAlert('Notice Deleted', 'The announcement notice was deleted successfully.', 'success');
+            await fetchNotices();
+          }
+        } catch (err) {
+          console.error('Failed to delete notice:', err);
+          triggerAlert('Delete Failed', err.response?.data?.message || 'Failed to delete notice.', 'danger');
+        }
+      },
+      'danger',
+      'Delete Notice'
+    );
   };
 
   // Handle resolving a complaint
-  const handleResolveComplaint = async (id) => {
-    if (!window.confirm('Mark this community complaint as RESOLVED?')) {
-      return;
-    }
-    setError('');
-    setSuccessMsg('');
-    try {
-      const res = await api.patch(`/complaints/${id}/status`);
-      if (res.data?.status === 'success' || res.status === 200) {
-        setSuccessMsg('Complaint successfully marked as resolved.');
-        await fetchComplaints();
-        await fetchSummary();
-      }
-    } catch (err) {
-      console.error('Resolve complaint failed:', err);
-      setError(err.response?.data?.message || 'Failed to resolve complaint.');
-    }
+  const handleResolveComplaint = (id) => {
+    triggerConfirm(
+      'Resolve Complaint',
+      'Mark this community complaint as RESOLVED?',
+      async () => {
+        setError('');
+        setSuccessMsg('');
+        try {
+          const res = await api.patch(`/complaints/${id}/status`);
+          if (res.data?.status === 'success' || res.status === 200) {
+            setSuccessMsg('Complaint successfully marked as resolved.');
+            await fetchComplaints();
+            await fetchSummary();
+          }
+        } catch (err) {
+          console.error('Resolve complaint failed:', err);
+          setError(err.response?.data?.message || 'Failed to resolve complaint.');
+        }
+      },
+      'success',
+      'Mark Resolved'
+    );
   };
 
   // Helper to build local or external image source URL
@@ -297,122 +363,123 @@ export default function CommitteeDashboard() {
     return `${base}/${path.replace(/^\/+/, '')}`;
   };
 
+  const getSectionTitle = () => {
+    switch (currentTab) {
+      case 'tickets': return 'Tickets & Complaints';
+      case 'finance': return 'Finance & Dues';
+      case 'notices': return 'Notices & Broadcasts';
+      default: return 'Overview';
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
-      {/* Top Header Bar */}
-      <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-emerald-600 text-white rounded">
-            <Users size={20} />
+    <DashboardLayout
+      activePath={location.pathname === '/committee/overview' ? '/committee/dashboard' : location.pathname}
+      role="COMMITTEE"
+      currentSectionName={getSectionTitle()}
+    >
+      {/* Committee Summary Stats Strip */}
+      {summary && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-white border border-slate-200 p-4 space-y-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Unresolved Complaints</span>
+            <p className="text-xl font-bold text-slate-900">{summary.totalPendingComplaints || 0}</p>
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Committee Operations</span>
-              <span className="text-slate-300">/</span>
-              <span className="text-sm font-medium text-slate-900">Management Hub</span>
-            </div>
-            <p className="text-xs text-slate-500">Community service ticket reviews & financial automation</p>
+          <div className="bg-white border border-slate-200 p-4 space-y-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Complaints Assigned To Me</span>
+            <p className="text-xl font-bold text-indigo-600">{summary.assignedComplaintsToMe || 0}</p>
+          </div>
+          <div className="bg-white border border-slate-200 p-4 space-y-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Open Service Requests</span>
+            <p className="text-xl font-bold text-amber-600">{summary.pendingServiceRequests || 0}</p>
           </div>
         </div>
+      )}
+      
+      {/* Global Notifications */}
+      {(error || successMsg) && (
+        <div className="p-6 pb-0">
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 text-xs p-3 font-medium">
+              {error}
+            </div>
+          )}
+          {successMsg && (
+            <div className="bg-green-50 border border-green-200 text-green-700 text-xs p-3 font-medium">
+              {successMsg}
+            </div>
+          )}
+        </div>
+      )}
 
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-medium">
-              {user ? `${user.firstName} ${user.lastName}` : 'Committee Member'}
-            </span>
-            <span className="text-xs uppercase px-2 py-0.5 bg-emerald-100 text-emerald-800 border border-emerald-200 font-semibold tracking-wider">
-              {user?.role || 'COMMITTEE'}
-            </span>
+      {currentTab === 'overview' && (
+        <div className="space-y-6">
+          {/* Premium Welcome & Committee Fast Track Guide */}
+          <div className="bg-gradient-to-r from-slate-900 to-indigo-950 text-white rounded-lg p-6 shadow-sm border border-slate-800 space-y-4">
+            <div className="space-y-1 text-left">
+              <h2 className="text-lg font-bold tracking-tight">Society Committee Member Workspace</h2>
+              <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
+                Welcome to your management workspace. Below is your quick actions command center to manage resident service tickets, publish society notice board announcements, and reconcile billing statement payments.
+              </p>
+            </div>
           </div>
 
-          <button
-            onClick={() => navigate('/profile')}
-            className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 text-xs font-semibold hover:bg-slate-100 focus:outline-none cursor-pointer text-slate-700"
-          >
-            Settings
-          </button>
-
-          <button
-            onClick={logout}
-            className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 text-xs font-semibold hover:bg-slate-100 focus:outline-none cursor-pointer text-slate-700"
-          >
-            <LogOut size={13} />
-            Logout
-          </button>
-        </div>
-      </header>
-
-      {/* Main Workspace Container */}
-      <main className="flex-1 p-6 space-y-6 max-w-7xl mx-auto w-full">
-        {/* Committee Summary Stats Strip */}
-        {summary && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-white border border-slate-200 p-4 space-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Unresolved Complaints</span>
-              <p className="text-xl font-bold text-slate-900">{summary.totalPendingComplaints || 0}</p>
-            </div>
-            <div className="bg-white border border-slate-200 p-4 space-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Complaints Assigned To Me</span>
-              <p className="text-xl font-bold text-indigo-600">{summary.assignedComplaintsToMe || 0}</p>
-            </div>
-            <div className="bg-white border border-slate-200 p-4 space-y-1">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Open Service Requests</span>
-              <p className="text-xl font-bold text-amber-600">{summary.pendingServiceRequests || 0}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Flat Horizontal Tab Selector Strip */}
-        <div className="border-b border-slate-200 flex gap-4">
-          <button
-            onClick={() => setCurrentTab('tickets')}
-            className={
-              currentTab === 'tickets'
-                ? 'border-b-2 border-indigo-600 text-indigo-600 font-semibold px-4 py-2 text-sm transitions-all cursor-pointer focus:outline-none'
-                : 'border-b-2 border-transparent text-slate-500 hover:text-slate-900 px-4 py-2 text-sm transitions-all cursor-pointer focus:outline-none'
-            }
-          >
-            Tickets & Complaints
-          </button>
-          <button
-            onClick={() => setCurrentTab('finance')}
-            className={
-              currentTab === 'finance'
-                ? 'border-b-2 border-indigo-600 text-indigo-600 font-semibold px-4 py-2 text-sm transitions-all cursor-pointer focus:outline-none'
-                : 'border-b-2 border-transparent text-slate-500 hover:text-slate-900 px-4 py-2 text-sm transitions-all cursor-pointer focus:outline-none'
-            }
-          >
-            Finance & Dues
-          </button>
-          <button
-            onClick={() => setCurrentTab('notices')}
-            className={
-              currentTab === 'notices'
-                ? 'border-b-2 border-indigo-600 text-indigo-600 font-semibold px-4 py-2 text-sm transitions-all cursor-pointer focus:outline-none'
-                : 'border-b-2 border-transparent text-slate-500 hover:text-slate-900 px-4 py-2 text-sm transitions-all cursor-pointer focus:outline-none'
-            }
-          >
-            Notices & Broadcasts
-          </button>
-        </div>
-        
-        {/* Global Notifications */}
-        {(error || successMsg) && (
-          <div className="p-6 pb-0">
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 text-xs p-3 font-medium">
-                {error}
+          {/* Quick Action Command Center Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left">
+            
+            {/* Card 1: Tickets & Complaints */}
+            <div className="bg-white border border-slate-200 p-6 rounded-brand-lg flex flex-col justify-between space-y-4 shadow-brand-low">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-indigo-600 font-semibold text-sm">
+                  <Wrench size={16} />
+                  <h3>Service Desk & Tickets</h3>
+                </div>
+                <p className="text-xs text-slate-500 leading-relaxed font-sans">
+                  Oversee resident plumbing, electrical, and facility repair requests, approve jobs, assign staff, and resolve community complaints.
+                </p>
               </div>
-            )}
-            {successMsg && (
-              <div className="bg-green-50 border border-green-200 text-green-700 text-xs p-3 font-medium">
-                {successMsg}
-              </div>
-            )}
-          </div>
-        )}
+              <Button onClick={() => navigate('/committee/tickets')} variant="primary" className="w-full">
+                Open Service Desk
+              </Button>
+            </div>
 
-        {currentTab === 'tickets' && (
+            {/* Card 2: Finance & Arrears */}
+            <div className="bg-white border border-slate-200 p-6 rounded-brand-lg flex flex-col justify-between space-y-4 shadow-brand-low">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-indigo-600 font-semibold text-sm">
+                  <DollarSign size={16} />
+                  <h3>Finance & Cash Collection</h3>
+                </div>
+                <p className="text-xs text-slate-500 leading-relaxed font-sans">
+                  Inspect outstanding monthly maintenance billing balances across units, print receipt duplicates, and record physical cash payments.
+                </p>
+              </div>
+              <Button onClick={() => navigate('/committee/finance')} variant="primary" className="w-full">
+                Open Finance Center
+              </Button>
+            </div>
+
+            {/* Card 3: Notice Board Bulletins */}
+            <div className="bg-white border border-slate-200 p-6 rounded-brand-lg flex flex-col justify-between space-y-4 shadow-brand-low">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-indigo-600 font-semibold text-sm">
+                  <FileText size={16} />
+                  <h3>Announcements & Notices</h3>
+                </div>
+                <p className="text-xs text-slate-500 leading-relaxed font-sans">
+                  Publish announcement circulars and notice letters, broadcast official updates, and manage the society bulletin timeline.
+                </p>
+              </div>
+              <Button onClick={() => navigate('/committee/notices')} variant="primary" className="w-full">
+                Open Notice Board
+              </Button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {currentTab === 'tickets' && (
           <div className="divide-y divide-slate-200">
             {/* Community Service Tickets Section */}
             <section className="p-6 flex flex-col space-y-4">
@@ -511,7 +578,7 @@ export default function CommitteeDashboard() {
                                 {ticket.status === 'APPROVED' && (
                                   <button
                                     onClick={() => handleResolveTicket(ticket.id)}
-                                    className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold py-1 px-2 rounded-md cursor-pointer focus:outline-none"
+                                    className="bg-brand-navy hover:bg-brand-navy-hover active:bg-brand-navy-active text-white text-xs font-semibold py-1 px-2 rounded-md cursor-pointer focus:outline-none"
                                   >
                                     Resolve
                                   </button>
@@ -636,7 +703,7 @@ export default function CommitteeDashboard() {
                               {item.status !== 'RESOLVED' && (user.role === 'ADMIN' || isAssignedToMe) ? (
                                 <button
                                   onClick={() => handleResolveComplaint(item.id)}
-                                  className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold py-1 px-3 rounded-md focus:outline-none cursor-pointer"
+                                  className="bg-brand-navy hover:bg-brand-navy-hover active:bg-brand-navy-active text-white text-xs font-semibold py-1 px-3 rounded-md focus:outline-none cursor-pointer"
                                 >
                                   Resolve
                                 </button>
@@ -805,7 +872,7 @@ export default function CommitteeDashboard() {
                               <td className="p-4">
                                 <button
                                   onClick={() => handleRecordCashSettlement(b)}
-                                  className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold py-1 px-3 rounded-md focus:outline-none cursor-pointer"
+                                  className="bg-brand-navy hover:bg-brand-navy-hover active:bg-brand-navy-active text-white text-xs font-semibold py-1 px-3 rounded-md focus:outline-none cursor-pointer"
                                 >
                                   Record Cash Settlement
                                 </button>
@@ -927,7 +994,17 @@ export default function CommitteeDashboard() {
             </div>
           </div>
         )}
-      </main>
-    </div>
+      <ConfirmModal
+        isOpen={modal.isOpen}
+        title={modal.title}
+        message={modal.message}
+        confirmLabel={modal.confirmLabel}
+        cancelLabel={modal.cancelLabel}
+        onConfirm={modal.onConfirm}
+        onCancel={closeModal}
+        isAlert={modal.isAlert}
+        type={modal.type}
+      />
+    </DashboardLayout>
   );
 }

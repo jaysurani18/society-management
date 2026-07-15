@@ -58,22 +58,52 @@ export default function AppRoutes() {
       />
 
       {/* Protected Dashboards */}
+      {/* Admin Subpaths */}
       <Route
         path="/admin/dashboard"
-        element={
-          <ProtectedRoute allowedRoles={['ADMIN']}>
-            <AdminDashboard />
-          </ProtectedRoute>
-        }
+        element={<ProtectedRoute allowedRoles={['ADMIN']}><AdminDashboard /></ProtectedRoute>}
+      />
+      <Route
+        path="/admin/directory"
+        element={<ProtectedRoute allowedRoles={['ADMIN']}><AdminDashboard /></ProtectedRoute>}
+      />
+      <Route
+        path="/admin/finance"
+        element={<ProtectedRoute allowedRoles={['ADMIN']}><AdminDashboard /></ProtectedRoute>}
+      />
+      <Route
+        path="/admin/operations"
+        element={<ProtectedRoute allowedRoles={['ADMIN']}><AdminDashboard /></ProtectedRoute>}
+      />
+      <Route
+        path="/admin/analytics"
+        element={<ProtectedRoute allowedRoles={['ADMIN']}><AdminDashboard /></ProtectedRoute>}
+      />
+      <Route
+        path="/admin/notices"
+        element={<ProtectedRoute allowedRoles={['ADMIN']}><AdminDashboard /></ProtectedRoute>}
+      />
+      <Route
+        path="/admin/logs"
+        element={<ProtectedRoute allowedRoles={['ADMIN']}><AdminDashboard /></ProtectedRoute>}
       />
 
+      {/* Committee Subpaths */}
       <Route
         path="/committee/dashboard"
-        element={
-          <ProtectedRoute allowedRoles={['COMMITTEE']}>
-            <CommitteeDashboard />
-          </ProtectedRoute>
-        }
+        element={<ProtectedRoute allowedRoles={['COMMITTEE']}><CommitteeDashboard /></ProtectedRoute>}
+      />
+      <Route
+        path="/committee/tickets"
+        element={<ProtectedRoute allowedRoles={['COMMITTEE']}><CommitteeDashboard /></ProtectedRoute>}
+      />
+      <Route
+        path="/committee/finance"
+        element={<ProtectedRoute allowedRoles={['COMMITTEE']}><CommitteeDashboard /></ProtectedRoute>}
+      />
+      <Route
+        path="/committee/notices"
+        element={<ProtectedRoute allowedRoles={['COMMITTEE']}><CommitteeDashboard /></ProtectedRoute>}
       />
 
       <Route
@@ -85,13 +115,26 @@ export default function AppRoutes() {
         }
       />
 
+      {/* Resident Subpaths */}
       <Route
         path="/resident/dashboard"
-        element={
-          <ProtectedRoute allowedRoles={['RESIDENT']}>
-            <ResidentDashboard />
-          </ProtectedRoute>
-        }
+        element={<ProtectedRoute allowedRoles={['RESIDENT']}><ResidentDashboard /></ProtectedRoute>}
+      />
+      <Route
+        path="/resident/requests"
+        element={<ProtectedRoute allowedRoles={['RESIDENT']}><ResidentDashboard /></ProtectedRoute>}
+      />
+      <Route
+        path="/resident/bills"
+        element={<ProtectedRoute allowedRoles={['RESIDENT']}><ResidentDashboard /></ProtectedRoute>}
+      />
+      <Route
+        path="/resident/payments"
+        element={<ProtectedRoute allowedRoles={['RESIDENT']}><ResidentDashboard /></ProtectedRoute>}
+      />
+      <Route
+        path="/resident/announcements"
+        element={<ProtectedRoute allowedRoles={['RESIDENT']}><ResidentDashboard /></ProtectedRoute>}
       />
 
       <Route
@@ -129,6 +172,7 @@ export default function AppRoutes() {
           </ProtectedRoute>
         }
       />
+
 
       {/* Fallback Catch-all Route */}
       <Route

@@ -1,15 +1,94 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
 import api from '../../services/api.js';
-import { Shield, LogOut, UserPlus, Users, Home, FileText, CheckCircle2, Award, DollarSign, Activity, Lock, AlertCircle, Check } from 'lucide-react';
+import { Shield, LogOut, UserPlus, Users, Home, FileText, CheckCircle2, Award, DollarSign, Activity, Lock, AlertCircle, Check, X, Camera, ArrowDown, Wrench } from 'lucide-react';
+import ConfirmModal from '../../components/ConfirmModal.jsx';
+import DashboardLayout from '../../components/design-system/DashboardLayout.jsx';
+import Card from '../../components/design-system/Card.jsx';
+import Button from '../../components/design-system/Button.jsx';
+import Badge from '../../components/design-system/Badge.jsx';
 
 export default function AdminDashboard() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+
+  // Custom Popups State
+  const [modal, setModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmLabel: 'Confirm',
+    cancelLabel: 'Cancel',
+    onConfirm: null,
+    isAlert: false,
+    type: 'default'
+  });
+
+  const triggerConfirm = (title, message, onConfirm, type = 'default', confirmLabel = 'Confirm') => {
+    setModal({
+      isOpen: true,
+      title,
+      message,
+      confirmLabel,
+      cancelLabel: 'Cancel',
+      onConfirm: () => {
+        onConfirm();
+        closeModal();
+      },
+      isAlert: false,
+      type
+    });
+  };
+
+  const triggerAlert = (title, message, type = 'default') => {
+    setModal({
+      isOpen: true,
+      title,
+      message,
+      confirmLabel: 'OK',
+      cancelLabel: '',
+      onConfirm: closeModal,
+      isAlert: true,
+      type
+    });
+  };
+
+  const closeModal = () => {
+    setModal(prev => ({ ...prev, isOpen: false }));
+  };
   
-  // Tab State
-  const [currentTab, setCurrentTab] = useState('overview'); // options: 'overview', 'directory', 'finance', 'operations', 'analytics'
+  // Tab State mapped to URL pathing
+  const location = useLocation();
+  let currentTab = 'overview';
+  if (location.pathname.includes('/admin/directory')) currentTab = 'directory';
+  else if (location.pathname.includes('/admin/finance')) currentTab = 'finance';
+  else if (location.pathname.includes('/admin/operations')) currentTab = 'operations';
+  else if (location.pathname.includes('/admin/analytics')) currentTab = 'analytics';
+  else if (location.pathname.includes('/admin/notices')) currentTab = 'notices';
+  else if (location.pathname.includes('/admin/logs')) currentTab = 'logs';
+
+  // Lightbox active state
+  const [activeLightboxImage, setActiveLightboxImage] = useState(null);
+
+  // Helper to format event descriptions nicely (not raw JSON)
+  const formatEventDetails = (log) => {
+    if (!log.details) return 'No details provided.';
+    try {
+      const data = JSON.parse(log.details);
+      if (data.message) {
+        if (data.email) return `${data.message} (${data.email})`;
+        return data.message;
+      }
+      const keys = Object.keys(data);
+      if (keys.length > 0) {
+        return keys.map(k => `${k}: ${JSON.stringify(data[k])}`).join(', ');
+      }
+      return log.details;
+    } catch (e) {
+      return log.details;
+    }
+  };
 
   // Data States
   const [residents, setResidents] = useState([]);
@@ -362,7 +441,7 @@ export default function AdminDashboard() {
     if (penaltyAmount === null) return;
     const penalty = parseFloat(penaltyAmount);
     if (isNaN(penalty) || penalty <= 0) {
-      alert('Please enter a valid positive number.');
+      triggerAlert('Invalid Amount', 'Please enter a valid positive penalty fee amount.', 'warning');
       return;
     }
 
@@ -384,28 +463,32 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleAdminResetPassword = async (resident) => {
+  const handleAdminResetPassword = (resident) => {
     const tempPass = `TempReset@${Math.floor(1000 + Math.random() * 9000)}`;
-    if (!window.confirm(`Reset password for resident ${resident.user.firstName} ${resident.user.lastName}? A temporary password will be generated.`)) {
-      return;
-    }
+    triggerConfirm(
+      'Reset Resident Password',
+      `Reset password for resident ${resident.user.firstName} ${resident.user.lastName}? A temporary password will be generated.`,
+      async () => {
+        setError('');
+        setSuccessMsg('');
+        setTempPasswordMsg('');
+        try {
+          const res = await api.post(`/users/${resident.user.id}/reset-password`, {
+            newPassword: tempPass,
+          });
 
-    setError('');
-    setSuccessMsg('');
-    setTempPasswordMsg('');
-    try {
-      const res = await api.post(`/users/${resident.user.id}/reset-password`, {
-        newPassword: tempPass,
-      });
-
-      if (res.data?.status === 'success' || res.status === 200) {
-        setTempPasswordMsg(`Password reset successful!\n\nTemporary Password: ${tempPass}\n\nPlease copy and share this password with the resident.`);
-        await fetchAuditLogs();
-      }
-    } catch (err) {
-      console.error('Failed to reset resident password:', err);
-      setError(err.response?.data?.message || 'Failed to reset password.');
-    }
+          if (res.data?.status === 'success' || res.status === 200) {
+            setTempPasswordMsg(`Password reset successful!\n\nTemporary Password: ${tempPass}\n\nPlease copy and share this password with the resident.`);
+            await fetchAuditLogs();
+          }
+        } catch (err) {
+          console.error('Failed to reset resident password:', err);
+          setError(err.response?.data?.message || 'Failed to reset password.');
+        }
+      },
+      'warning',
+      'Reset Password'
+    );
   };
 
   // Dummy placeholder function to fit code layout
@@ -453,25 +536,29 @@ export default function AdminDashboard() {
   };
 
   // Resident Deactivate (soft-delete)
-  const handleDeactivate = async (id) => {
-    if (!window.confirm('Are you sure you want to deactivate this resident profile?')) {
-      return;
-    }
-
-    setError('');
-    setSuccessMsg('');
-    try {
-      const response = await api.delete(`/residents/${id}`);
-      if (response.status === 200 || response.data?.status === 'success') {
-        setSuccessMsg('Resident profile deactivated successfully.');
-        await fetchResidents();
-        await fetchAuditLogs();
-        await fetchMetrics();
-      }
-    } catch (err) {
-      console.error('Deactivation error:', err);
-      setError(err.response?.data?.message || 'Failed to deactivate resident.');
-    }
+  const handleDeactivate = (id) => {
+    triggerConfirm(
+      'Deactivate Resident Profile',
+      'Are you sure you want to deactivate this resident profile? They will no longer have access to their personal ledger dashboard.',
+      async () => {
+        setError('');
+        setSuccessMsg('');
+        try {
+          const response = await api.delete(`/residents/${id}`);
+          if (response.status === 200 || response.data?.status === 'success') {
+            setSuccessMsg('Resident profile deactivated successfully.');
+            await fetchResidents();
+            await fetchAuditLogs();
+            await fetchMetrics();
+          }
+        } catch (err) {
+          console.error('Deactivation error:', err);
+          setError(err.response?.data?.message || 'Failed to deactivate resident.');
+        }
+      },
+      'danger',
+      'Deactivate'
+    );
   };
 
   // Notice Bulletin publisher
@@ -520,113 +607,141 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleDeleteNotice = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this notice/announcement?')) {
-      return;
-    }
-    try {
-      const res = await api.delete(`/announcements/${id}`);
-      if (res.status === 200 || res.data?.status === 'success') {
-        alert('Notice deleted successfully.');
-        await fetchNotices();
-        await fetchAuditLogs();
-      }
-    } catch (err) {
-      console.error('Failed to delete notice:', err);
-      alert(err.response?.data?.message || 'Failed to delete notice.');
-    }
+  const handleDeleteNotice = (id) => {
+    triggerConfirm(
+      'Delete Notice',
+      'Are you sure you want to delete this notice/announcement? This action is permanent.',
+      async () => {
+        try {
+          const res = await api.delete(`/announcements/${id}`);
+          if (res.status === 200 || res.data?.status === 'success') {
+            triggerAlert('Notice Deleted', 'The announcement notice was deleted successfully.', 'success');
+            await fetchNotices();
+            await fetchAuditLogs();
+          }
+        } catch (err) {
+          console.error('Failed to delete notice:', err);
+          triggerAlert('Delete Failed', err.response?.data?.message || 'Failed to delete notice.', 'danger');
+        }
+      },
+      'danger',
+      'Delete Notice'
+    );
   };
 
   // Resolve Complaint
-  const handleResolveComplaint = async (id) => {
-    if (!window.confirm('Mark this community complaint as RESOLVED?')) {
-      return;
-    }
-    setError('');
-    setSuccessMsg('');
-    try {
-      const res = await api.patch(`/complaints/${id}/status`);
-      if (res.data?.status === 'success' || res.status === 200) {
-        setSuccessMsg('Complaint successfully marked as resolved.');
-        await fetchComplaints();
-        await fetchAuditLogs();
-        await fetchMetrics();
-      }
-    } catch (err) {
-      console.error('Resolve complaint failed:', err);
-      setError(err.response?.data?.message || 'Failed to update complaint status.');
-    }
+  const handleResolveComplaint = (id) => {
+    triggerConfirm(
+      'Resolve Complaint',
+      'Mark this community complaint as RESOLVED?',
+      async () => {
+        setError('');
+        setSuccessMsg('');
+        try {
+          const res = await api.patch(`/complaints/${id}/status`);
+          if (res.data?.status === 'success' || res.status === 200) {
+            setSuccessMsg('Complaint successfully marked as resolved.');
+            await fetchComplaints();
+            await fetchAuditLogs();
+            await fetchMetrics();
+          }
+        } catch (err) {
+          console.error('Resolve complaint failed:', err);
+          setError(err.response?.data?.message || 'Failed to update complaint status.');
+        }
+      },
+      'success',
+      'Mark Resolved'
+    );
   };
 
   // Promoting User to Committee
-  const handlePromote = async (userId, responsibility) => {
+  const handlePromote = (userId, responsibility) => {
     if (!responsibility) {
-      alert('Please select a designation.');
+      triggerAlert('Designation Required', 'Please select a designation responsibility.', 'warning');
       return;
     }
-    setError('');
-    setSuccessMsg('');
-    try {
-      const res = await api.post('/committee', {
-        userId,
-        responsibility,
-      });
-      if (res.data?.status === 'success' || res.status === 201) {
-        setSuccessMsg('User successfully promoted to Committee role.');
-        setPromotionDesignations(prev => ({ ...prev, [userId]: '' }));
-        setPromotingUserIds(prev => ({ ...prev, [userId]: false }));
-        await fetchResidents();
-        await fetchCommitteeMembers();
-        await fetchAuditLogs();
-        await fetchMetrics();
-      }
-    } catch (err) {
-      console.error('Promotion failed:', err);
-      setError(err.response?.data?.message || 'Failed to promote resident to committee.');
-    }
+    triggerConfirm(
+      'Promote to Committee',
+      `Promote this resident to the Committee with responsibility: "${responsibility}"?`,
+      async () => {
+        setError('');
+        setSuccessMsg('');
+        try {
+          const res = await api.post('/committee', {
+            userId,
+            responsibility,
+          });
+          if (res.data?.status === 'success' || res.status === 201) {
+            setSuccessMsg('User successfully promoted to Committee role.');
+            setPromotionDesignations(prev => ({ ...prev, [userId]: '' }));
+            setPromotingUserIds(prev => ({ ...prev, [userId]: false }));
+            await fetchResidents();
+            await fetchCommitteeMembers();
+            await fetchAuditLogs();
+            await fetchMetrics();
+          }
+        } catch (err) {
+          console.error('Promotion failed:', err);
+          setError(err.response?.data?.message || 'Failed to promote resident to committee.');
+        }
+      },
+      'default',
+      'Promote Resident'
+    );
   };
 
   // Demoting Committee Member
-  const handleDemote = async (committeeProfileId) => {
-    if (!window.confirm('Are you sure you want to demote this committee member back to standard resident?')) {
-      return;
-    }
-    setError('');
-    setSuccessMsg('');
-    try {
-      const res = await api.delete(`/committee/${committeeProfileId}`);
-      if (res.status === 200 || res.data?.status === 'success') {
-        setSuccessMsg('Committee member demoted back to standard resident.');
-        await fetchResidents();
-        await fetchCommitteeMembers();
-        await fetchAuditLogs();
-        await fetchMetrics();
-      }
-    } catch (err) {
-      console.error('Demotion failed:', err);
-      setError(err.response?.data?.message || 'Failed to demote committee member.');
-    }
+  const handleDemote = (committeeProfileId) => {
+    triggerConfirm(
+      'Demote Committee Member',
+      'Are you sure you want to demote this committee member back to standard resident?',
+      async () => {
+        setError('');
+        setSuccessMsg('');
+        try {
+          const res = await api.delete(`/committee/${committeeProfileId}`);
+          if (res.status === 200 || res.data?.status === 'success') {
+            setSuccessMsg('Committee member demoted back to standard resident.');
+            await fetchResidents();
+            await fetchCommitteeMembers();
+            await fetchAuditLogs();
+            await fetchMetrics();
+          }
+        } catch (err) {
+          console.error('Demotion failed:', err);
+          setError(err.response?.data?.message || 'Failed to demote committee member.');
+        }
+      },
+      'danger',
+      'Demote Member'
+    );
   };
 
   // Review (Approve/Reject) Service Request
-  const handleReviewServiceRequest = async (id, status) => {
-    if (!window.confirm(`Mark this service request as ${status}?`)) {
-      return;
-    }
-    setError('');
-    setSuccessMsg('');
-    try {
-      const res = await api.patch(`/service-requests/${id}/review`, { status });
-      if (res.data?.status === 'success') {
-        setSuccessMsg(`Service request successfully updated to ${status}.`);
-        await fetchServiceRequests();
-        await fetchMetrics();
-        await fetchAuditLogs();
-      }
-    } catch (err) {
-      console.error('Review action failed:', err);
-      setError(err.response?.data?.message || 'Failed to submit review.');
-    }
+  const handleReviewServiceRequest = (id, status) => {
+    triggerConfirm(
+      'Review Service Request',
+      `Mark this service request as ${status}?`,
+      async () => {
+        setError('');
+        setSuccessMsg('');
+        try {
+          const res = await api.patch(`/service-requests/${id}/review`, { status });
+          if (res.data?.status === 'success') {
+            setSuccessMsg(`Service request successfully updated to ${status}.`);
+            await fetchServiceRequests();
+            await fetchMetrics();
+            await fetchAuditLogs();
+          }
+        } catch (err) {
+          console.error('Review action failed:', err);
+          setError(err.response?.data?.message || 'Failed to submit review.');
+        }
+      },
+      status === 'REJECTED' ? 'danger' : 'success',
+      status === 'REJECTED' ? 'Reject' : 'Approve'
+    );
   };
 
   // Assign Complaint to Committee Member
@@ -686,37 +801,41 @@ export default function AdminDashboard() {
   };
 
   // Reconcile Cash Settlement against unpaid bill
-  const handleRecordCashSettlement = async (bill) => {
-    if (!window.confirm(`Record manual cash settlement of ₹${(bill.amount + bill.penalty - bill.discount).toFixed(2)} for flat unit ${bill.flat?.block} - ${bill.flat?.number}?`)) {
-      return;
-    }
+  const handleRecordCashSettlement = (bill) => {
+    const totalAmount = bill.amount + bill.penalty - bill.discount;
+    triggerConfirm(
+      'Confirm Cash Settlement',
+      `Record manual cash settlement of ₹${totalAmount.toFixed(2)} for flat unit ${bill.flat?.block} - ${bill.flat?.number}?`,
+      async () => {
+        setError('');
+        setSuccessMsg('');
+        try {
+          const payeeName = bill.flat 
+            ? `Resident (Flat ${bill.flat.block} - ${bill.flat.number})`
+            : 'Resident Flat';
 
-    setError('');
-    setSuccessMsg('');
-    try {
-      const totalAmount = bill.amount + bill.penalty - bill.discount;
-      const payeeName = bill.flat 
-        ? `Resident (Flat ${bill.flat.block} - ${bill.flat.number})`
-        : 'Resident Flat';
+          const res = await api.post(`/bills/${bill.id}/record-cash`, {
+            amountPaid: totalAmount,
+            paidByName: payeeName,
+            discount: 0,
+          });
 
-      const res = await api.post(`/bills/${bill.id}/record-cash`, {
-        amountPaid: totalAmount,
-        paidByName: payeeName,
-        discount: 0,
-      });
-
-      if (res.data?.status === 'success' || res.status === 201) {
-        setSuccessMsg(`Cash payment reconciled. Receipt generated for flat unit ${bill.flat?.block} - ${bill.flat?.number}.`);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-        await fetchUnpaidBills(); 
-        await fetchMetrics();
-        await fetchAuditLogs();
-      }
-    } catch (err) {
-      console.error('Reconciliation settlement failed:', err);
-      setError(err.response?.data?.message || 'Failed to process cash settlement.');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
+          if (res.data?.status === 'success' || res.status === 201) {
+            setSuccessMsg(`Cash payment reconciled. Receipt generated for flat unit ${bill.flat?.block} - ${bill.flat?.number}.`);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            await fetchUnpaidBills(); 
+            await fetchMetrics();
+            await fetchAuditLogs();
+          }
+        } catch (err) {
+          console.error('Reconciliation settlement failed:', err);
+          setError(err.response?.data?.message || 'Failed to process cash settlement.');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      },
+      'warning',
+      'Record Cash'
+    );
   };
 
   // Flat Unit Registration Handler
@@ -756,25 +875,30 @@ export default function AdminDashboard() {
   };
 
   // Flat Unit Deletion Handler
-  const handleDeleteFlat = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this flat unit?')) {
-      return;
-    }
-    setError('');
-    setSuccessMsg('');
-    try {
-      const res = await api.delete(`/flats/${id}`);
-      if (res.status === 200 || res.data?.status === 'success') {
-        setSuccessMsg(res.data?.message || 'Flat unit deleted successfully.');
-        await fetchFlats();
-        await fetchResidents(); 
-        await fetchAuditLogs();
-        await fetchMetrics();
-      }
-    } catch (err) {
-      console.error('Failed to delete flat:', err);
-      setError(err.response?.data?.message || 'Failed to delete flat unit.');
-    }
+  const handleDeleteFlat = (id) => {
+    triggerConfirm(
+      'Delete Flat Unit',
+      'Are you sure you want to delete this flat unit? All associated historical billing statements and residency relations will be unlinked.',
+      async () => {
+        setError('');
+        setSuccessMsg('');
+        try {
+          const res = await api.delete(`/flats/${id}`);
+          if (res.status === 200 || res.data?.status === 'success') {
+            setSuccessMsg(res.data?.message || 'Flat unit deleted successfully.');
+            await fetchFlats();
+            await fetchResidents(); 
+            await fetchAuditLogs();
+            await fetchMetrics();
+          }
+        } catch (err) {
+          console.error('Failed to delete flat:', err);
+          setError(err.response?.data?.message || 'Failed to delete flat unit.');
+        }
+      },
+      'danger',
+      'Delete Flat'
+    );
   };
 
   // Helper to build local or external image source URL
@@ -785,339 +909,377 @@ export default function AdminDashboard() {
     return `${base}/${path.replace(/^\/+/, '')}`;
   };
 
+  const getSectionTitle = () => {
+    switch (currentTab) {
+      case 'directory': return 'Resident Directory & Committee';
+      case 'finance': return 'Financial Automations';
+      case 'operations': return 'Service Requests & Complaints';
+      case 'analytics': return 'Reports & Analytics';
+      case 'notices': return 'Society Notices';
+      case 'logs': return 'System Audit Logs';
+      default: return 'Overview';
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
-      {/* Top Header Bar */}
-      <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-indigo-600 text-white rounded">
-            <Shield size={20} />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Admin Workspace</span>
-              <span className="text-slate-300">/</span>
-              <span className="text-sm font-medium text-slate-900">Resident Directory</span>
+    <DashboardLayout
+      activePath={location.pathname === '/admin/overview' ? '/admin/dashboard' : location.pathname}
+      role="ADMIN"
+      currentSectionName={getSectionTitle()}
+    >
+      {/* Error / Success Notifications */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 text-xs p-3 font-medium">
+          {error}
+        </div>
+      )}
+      {successMsg && (
+        <div className="bg-green-50 border border-green-200 text-green-700 text-xs p-3 font-medium">
+          {successMsg}
+        </div>
+      )}
+
+      {/* Analytical Reporting Metrics Strip (Horizontal Grid) */}
+      <section className="bg-slate-50/50">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          
+          {/* Card 1: Financial Overview */}
+          <div className="bg-white border border-slate-200 p-4 space-y-2">
+            <div className="flex items-center justify-between text-slate-500">
+              <span className="text-[10px] font-bold uppercase tracking-wider">Total Revenue Collected</span>
+              <DollarSign size={14} className="text-slate-400" />
             </div>
-            <p className="text-xs text-slate-500">System database flat records & profiles</p>
+            <p className="text-xl font-bold font-mono text-slate-900">
+              ₹{metrics.totalRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </p>
           </div>
+
+          {/* Card 2: Operations */}
+          <div className="bg-white border border-slate-200 p-4 space-y-2">
+            <div className="flex items-center justify-between text-slate-500">
+              <span className="text-[10px] font-bold uppercase tracking-wider">Active Service Requests</span>
+              <Activity size={14} className="text-slate-400" />
+            </div>
+            <p className="text-xl font-bold font-mono text-slate-900">{metrics.activeRequests}</p>
+          </div>
+
+          {/* Card 3: Safety */}
+          <div className="bg-white border border-slate-200 p-4 space-y-2">
+            <div className="flex items-center justify-between text-slate-500">
+              <span className="text-[10px] font-bold uppercase tracking-wider">Pending Community Complaints</span>
+              <Shield size={14} className="text-slate-400" />
+            </div>
+            <p className="text-xl font-bold font-mono text-slate-900">{metrics.pendingComplaints}</p>
+          </div>
+
         </div>
+      </section>
 
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-semibold uppercase px-2 py-0.5 bg-slate-100 text-slate-800 border border-slate-200">
-              Total Records: {totalCount}
-            </span>
-            <span className="text-sm font-medium">
-              {user ? `${user.firstName} ${user.lastName}` : 'Administrator'}
-            </span>
-          </div>
-
-          <button
-            onClick={() => navigate('/profile')}
-            className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 text-xs font-semibold hover:bg-slate-100 focus:outline-none cursor-pointer text-slate-700"
-          >
-            Settings
-          </button>
-
-          <button
-            onClick={logout}
-            className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 text-xs font-semibold hover:bg-slate-100 focus:outline-none cursor-pointer text-slate-700"
-          >
-            <LogOut size={13} />
-            Logout
-          </button>
-        </div>
-      </header>
-
-      {/* Main Workspace Column */}
-      <main className="flex-1 p-6 space-y-6 max-w-7xl mx-auto w-full">
-        
-        {/* Error / Success Notifications */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 text-xs p-3 font-medium">
-            {error}
-          </div>
-        )}
-        {successMsg && (
-          <div className="bg-green-50 border border-green-200 text-green-700 text-xs p-3 font-medium">
-            {successMsg}
-          </div>
-        )}
-
-        {/* Analytical Reporting Metrics Strip (Horizontal Grid) */}
-        <section className="bg-slate-50/50">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            
-            {/* Card 1: Financial Overview */}
-            <div className="bg-white border border-slate-200 p-4 space-y-2">
-              <div className="flex items-center justify-between text-slate-500">
-                <span className="text-[10px] font-bold uppercase tracking-wider">Total Revenue Collected</span>
-                <DollarSign size={14} className="text-slate-400" />
-              </div>
-              <p className="text-xl font-bold font-mono text-slate-900">
-                ₹{metrics.totalRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+      {/* Tab Contents */}
+      {currentTab === 'overview' && (
+        <div className="space-y-6">
+          {/* Premium Welcome & Society Quick Launch Guide Banner */}
+          <div className="bg-gradient-to-r from-slate-900 to-indigo-950 text-white rounded-lg p-6 shadow-sm border border-slate-800 space-y-4">
+            <div className="space-y-1 text-left">
+              <h2 className="text-lg font-bold tracking-tight">Cooperative Society Management Workspace</h2>
+              <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
+                Welcome to your central administration hub. Below is your command center to access and control the physical, financial, operational, and announcement notice boards of the residential community.
               </p>
             </div>
-
-            {/* Card 2: Operations */}
-            <div className="bg-white border border-slate-200 p-4 space-y-2">
-              <div className="flex items-center justify-between text-slate-500">
-                <span className="text-[10px] font-bold uppercase tracking-wider">Active Service Requests</span>
-                <Activity size={14} className="text-slate-400" />
-              </div>
-              <p className="text-xl font-bold font-mono text-slate-900">{metrics.activeRequests}</p>
-            </div>
-
-            {/* Card 3: Safety */}
-            <div className="bg-white border border-slate-200 p-4 space-y-2">
-              <div className="flex items-center justify-between text-slate-500">
-                <span className="text-[10px] font-bold uppercase tracking-wider">Pending Community Complaints</span>
-                <Shield size={14} className="text-slate-400" />
-              </div>
-              <p className="text-xl font-bold font-mono text-slate-900">{metrics.pendingComplaints}</p>
-            </div>
-
           </div>
-        </section>
 
-        {/* Flat Tab Selector Strip */}
-        <div className="flex border-b border-slate-200 gap-2 overflow-x-auto pb-px">
-          <button
-            onClick={() => setCurrentTab('overview')}
-            className={currentTab === 'overview' 
-              ? 'border-b-2 border-indigo-600 text-indigo-600 font-semibold px-4 py-2 text-sm focus:outline-none cursor-pointer' 
-              : 'border-b-2 border-transparent text-slate-500 hover:text-slate-900 px-4 py-2 text-sm focus:outline-none cursor-pointer'}
-          >
-            Overview
-          </button>
-          <button
-            onClick={() => setCurrentTab('directory')}
-            className={currentTab === 'directory' 
-              ? 'border-b-2 border-indigo-600 text-indigo-600 font-semibold px-4 py-2 text-sm focus:outline-none cursor-pointer' 
-              : 'border-b-2 border-transparent text-slate-500 hover:text-slate-900 px-4 py-2 text-sm focus:outline-none cursor-pointer'}
-          >
-            Resident Directory & Committee
-          </button>
-          <button
-            onClick={() => setCurrentTab('finance')}
-            className={currentTab === 'finance' 
-              ? 'border-b-2 border-indigo-600 text-indigo-600 font-semibold px-4 py-2 text-sm focus:outline-none cursor-pointer' 
-              : 'border-b-2 border-transparent text-slate-500 hover:text-slate-900 px-4 py-2 text-sm focus:outline-none cursor-pointer'}
-          >
-            Financial Automations
-          </button>
-          <button
-            onClick={() => setCurrentTab('operations')}
-            className={currentTab === 'operations' 
-              ? 'border-b-2 border-indigo-600 text-indigo-600 font-semibold px-4 py-2 text-sm focus:outline-none cursor-pointer' 
-              : 'border-b-2 border-transparent text-slate-500 hover:text-slate-900 px-4 py-2 text-sm focus:outline-none cursor-pointer'}
-          >
-            Service Requests & Complaints
-          </button>
-          <button
-            onClick={() => setCurrentTab('analytics')}
-            className={currentTab === 'analytics' 
-              ? 'border-b-2 border-indigo-600 text-indigo-600 font-semibold px-4 py-2 text-sm focus:outline-none cursor-pointer' 
-              : 'border-b-2 border-transparent text-slate-500 hover:text-slate-900 px-4 py-2 text-sm focus:outline-none cursor-pointer'}
-          >
-            Reports & Analytics
-          </button>
-        </div>
-
-        {/* Tab Contents */}
-        {currentTab === 'overview' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Quick Action Command Center Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 text-left">
             
-            {/* Left Column: Notice Board Workspace (1/3 Width) */}
-            <div className="lg:col-span-1 space-y-6">
-              {/* Publish notice */}
-              <div className="bg-white border border-slate-200 p-6 space-y-4">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 text-indigo-600 font-semibold text-sm">
-                    <FileText size={16} />
-                    <h3>Publish Society Notice</h3>
-                  </div>
-                  <p className="text-xs text-slate-500 font-medium">Broadcast bulletins to all residents.</p>
+            {/* Card 1: Resident Registry */}
+            <div className="bg-white border border-slate-200 p-6 rounded-brand-lg flex flex-col justify-between space-y-4 shadow-brand-low">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-indigo-600 font-semibold text-sm">
+                  <Users size={16} />
+                  <h3>Resident Directory & Committee</h3>
                 </div>
-
-                {noticeError && (
-                  <div className="bg-red-50 border border-red-200 text-red-700 text-xs p-3 font-medium">
-                    {noticeError}
-                  </div>
-                )}
-                {noticeSuccess && (
-                  <div className="bg-green-50 border border-green-200 text-green-700 text-xs p-3 font-medium">
-                    {noticeSuccess}
-                  </div>
-                )}
-
-                <form onSubmit={handlePublishNotice} className="space-y-4">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Notice Title</label>
-                    <input
-                      type="text"
-                      value={noticeTitle}
-                      onChange={(e) => setNoticeTitle(e.target.value)}
-                      placeholder="e.g. Scheduled Water Shutdown"
-                      required
-                      disabled={publishingNotice}
-                      className="border border-slate-300 focus:border-indigo-600 focus:outline-none rounded-md p-2 w-full text-slate-950 text-sm bg-white"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Notice Content</label>
-                    <textarea
-                      value={noticeContent}
-                      onChange={(e) => setNoticeContent(e.target.value)}
-                      placeholder="Type the notice details..."
-                      required
-                      rows={4}
-                      disabled={publishingNotice}
-                      className="border border-slate-300 focus:border-indigo-600 focus:outline-none rounded-md p-2 w-full text-slate-950 text-sm bg-white resize-none"
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={publishingNotice}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold py-2 px-4 rounded-md w-full cursor-pointer disabled:opacity-50"
-                  >
-                    {publishingNotice ? 'Publishing...' : 'Publish Notice'}
-                  </button>
-                </form>
+                <p className="text-xs text-slate-500 leading-relaxed font-sans">
+                  Onboard new residents, allocate flats, manage ownership profiles, assign committee designation roles, reset passwords, or deactivate logins.
+                </p>
               </div>
-
-              {/* Published Bulletins Registry */}
-              <div className="bg-white border border-slate-200 p-6 space-y-4">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2 text-indigo-600 font-semibold text-sm">
-                    <FileText size={16} />
-                    <h3>Active Notice Bulletin Registry</h3>
-                  </div>
-                  <p className="text-xs text-slate-500 font-medium">Manage and delete posted notice letters.</p>
-                </div>
-
-                {loadingNotices ? (
-                  <p className="text-xs text-slate-500 italic">Syncing notice board...</p>
-                ) : notices.length === 0 ? (
-                  <p className="text-xs text-slate-400 italic p-4 border border-dashed border-slate-200 text-center bg-slate-50">
-                    No notice letters currently broadcasted.
-                  </p>
-                ) : (
-                  <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
-                    {notices.map((n) => (
-                      <div key={n.id} className="p-3 border border-slate-200 bg-slate-50/50 flex flex-col justify-between space-y-2">
-                        <div className="flex justify-between items-start gap-2">
-                          <div>
-                            <h4 className="text-xs font-bold text-slate-900">{n.title}</h4>
-                            <span className="text-[9px] text-slate-400 font-mono">
-                              {new Date(n.createdAt).toLocaleString()}
-                            </span>
-                          </div>
-                          <button
-                            onClick={() => handleDeleteNotice(n.id)}
-                            className="text-red-500 hover:text-red-700 text-[10px] font-bold border border-red-200 hover:bg-red-50 px-1.5 py-0.5 rounded cursor-pointer"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                        <p className="text-[11px] text-slate-600 whitespace-pre-line leading-relaxed">{n.content}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <Button onClick={() => navigate('/admin/directory')} variant="primary" className="w-full">
+                Open Resident Registry
+              </Button>
             </div>
 
-            {/* Right Column: Audit Logs (2/3 Width) */}
-            <div className="lg:col-span-2 bg-white border border-slate-200 p-6 space-y-4">
-              <div className="flex items-center gap-2 text-slate-700 font-semibold text-sm">
-                <Lock size={16} className="text-slate-500" />
-                <h3>System Audit & Activity Logs</h3>
-              </div>
-
-              {/* Scrollable container with stationary header */}
-              <div className="max-h-[500px] overflow-y-auto border border-slate-200 rounded-md">
-                {loadingAudits ? (
-                  <div className="text-center p-8 text-slate-500 text-sm">
-                    Fetching audit trails...
-                  </div>
-                ) : auditLogs.length === 0 ? (
-                  <div className="text-center p-8 text-slate-400 text-sm">
-                    No system audit records found.
-                  </div>
-                ) : (
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-slate-50 sticky top-0 border-b border-slate-200">
-                        <th className="bg-slate-50 text-slate-500 text-[10px] font-bold uppercase tracking-wider p-4">
-                          Timestamp
-                        </th>
-                        <th className="bg-slate-50 text-slate-500 text-[10px] font-bold uppercase tracking-wider p-4">
-                          System Event / Action
-                        </th>
-                        <th className="bg-slate-50 text-slate-500 text-[10px] font-bold uppercase tracking-wider p-4">
-                          Operator Role
-                        </th>
-                        <th className="bg-slate-50 text-slate-500 text-[10px] font-bold uppercase tracking-wider p-4">
-                          Status State
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200">
-                      {auditLogs.map((log) => (
-                        <tr key={log.id} className="hover:bg-slate-50/50">
-                          <td className="p-4 text-slate-500 text-xs font-mono">
-                            {new Date(log.createdAt).toLocaleString()}
-                          </td>
-                          <td className="p-4 space-y-0.5">
-                            <p className="text-slate-900 font-semibold text-xs">{log.action}</p>
-                            <p className="text-slate-400 text-[10px] truncate max-w-xs" title={log.details}>
-                              {log.details}
-                            </p>
-                          </td>
-                          <td className="p-4">
-                            <span className="text-xs text-slate-700 font-medium">
-                              {log.user ? log.user.role : 'SYSTEM'}
-                            </span>
-                          </td>
-                          <td className="p-4">
-                            <span className="bg-green-50 border border-green-200 text-green-700 text-[9px] font-bold px-1.5 py-0.2 rounded uppercase">
-                              Success
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-              {auditTotalPages > 1 && (
-                <div className="flex items-center justify-between text-xs text-slate-500 pt-3 border-t border-slate-100">
-                  <span>Page {auditPage} of {auditTotalPages}</span>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setAuditPage(prev => Math.max(prev - 1, 1))}
-                      disabled={auditPage === 1}
-                      className="px-2 py-1 border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-50 cursor-pointer focus:outline-none"
-                    >
-                      Previous
-                    </button>
-                    <button
-                      onClick={() => setAuditPage(prev => Math.min(prev + 1, auditTotalPages))}
-                      disabled={auditPage === auditTotalPages}
-                      className="px-2 py-1 border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-50 cursor-pointer focus:outline-none"
-                    >
-                      Next
-                    </button>
-                  </div>
+            {/* Card 2: Financial Automations */}
+            <div className="bg-white border border-slate-200 p-6 rounded-brand-lg flex flex-col justify-between space-y-4 shadow-brand-low">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-indigo-600 font-semibold text-sm">
+                  <DollarSign size={16} />
+                  <h3>Financial Automations & Invoicing</h3>
                 </div>
-              )}
+                <p className="text-xs text-slate-500 leading-relaxed font-sans">
+                  Generate community-wide monthly maintenance statement invoices, add late fee penalties, reconcile outstanding dues, and print ledger receipts.
+                </p>
+              </div>
+              <Button onClick={() => navigate('/admin/finance')} variant="primary" className="w-full">
+                Open Billing Center
+              </Button>
             </div>
+
+            {/* Card 3: Operations & Tickets */}
+            <div className="bg-white border border-slate-200 p-6 rounded-brand-lg flex flex-col justify-between space-y-4 shadow-brand-low">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-indigo-600 font-semibold text-sm">
+                  <Wrench size={16} />
+                  <h3>Service Requests & Complaints</h3>
+                </div>
+                <p className="text-xs text-slate-500 leading-relaxed font-sans">
+                  Oversee filed facility maintenance tickets, approve or reject plumbing/electrical requests, resolve resident complaints, and assign personnel.
+                </p>
+              </div>
+              <Button onClick={() => navigate('/admin/operations')} variant="primary" className="w-full">
+                Open Service Desk
+              </Button>
+            </div>
+
+            {/* Card 4: Notices Board */}
+            <div className="bg-white border border-slate-200 p-6 rounded-brand-lg flex flex-col justify-between space-y-4 shadow-brand-low">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-indigo-600 font-semibold text-sm">
+                  <FileText size={16} />
+                  <h3>Society Notices & Bulletins</h3>
+                </div>
+                <p className="text-xs text-slate-500 leading-relaxed font-sans">
+                  Publish official announcements and notice circulars, view active bulletin timelines, and delete expired notices broadcasted to residents.
+                </p>
+              </div>
+              <Button onClick={() => navigate('/admin/notices')} variant="primary" className="w-full">
+                Open Notice Board
+              </Button>
+            </div>
+
+            {/* Card 5: System Audit Logs */}
+            <div className="bg-white border border-slate-200 p-6 rounded-brand-lg flex flex-col justify-between space-y-4 shadow-brand-low">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-indigo-600 font-semibold text-sm">
+                  <Lock size={16} />
+                  <h3>System Audit Timeline</h3>
+                </div>
+                <p className="text-xs text-slate-500 leading-relaxed font-sans">
+                  Inspect the append-only audit trail logs capturing operator actions, logins, database changes, and system-wide administrative event histories.
+                </p>
+              </div>
+              <Button onClick={() => navigate('/admin/logs')} variant="primary" className="w-full">
+                Open Audit Registry
+              </Button>
+            </div>
+
+            {/* Card 6: Performance Reports */}
+            <div className="bg-white border border-slate-200 p-6 rounded-brand-lg flex flex-col justify-between space-y-4 shadow-brand-low">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-indigo-600 font-semibold text-sm">
+                  <Activity size={16} />
+                  <h3>Reports & Performance Analytics</h3>
+                </div>
+                <p className="text-xs text-slate-500 leading-relaxed font-sans">
+                  Review aggregate society performance analytics, monthly invoicing collections vs. outstanding arrears, and average complaint resolution speeds.
+                </p>
+              </div>
+              <Button onClick={() => navigate('/admin/analytics')} variant="primary" className="w-full">
+                Open Analytics Reports
+              </Button>
+            </div>
+
           </div>
-        )}
+        </div>
+      )}
+
+      {currentTab === 'notices' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start text-left">
+          {/* Left Column: Publish Notice Form */}
+          <div className="lg:col-span-1 bg-white border border-slate-200 p-6 space-y-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-indigo-600 font-semibold text-sm">
+                <FileText size={16} />
+                <h3>Publish Society Notice</h3>
+              </div>
+              <p className="text-xs text-slate-500 font-medium">Broadcast bulletins to all residents.</p>
+            </div>
+
+            {noticeError && (
+              <div className="bg-red-50 border border-red-200 text-red-700 text-xs p-3 font-medium">
+                {noticeError}
+              </div>
+            )}
+            {noticeSuccess && (
+              <div className="bg-green-50 border border-green-200 text-green-700 text-xs p-3 font-medium">
+                {noticeSuccess}
+              </div>
+            )}
+
+            <form onSubmit={handlePublishNotice} className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Notice Title</label>
+                <input
+                  type="text"
+                  value={noticeTitle}
+                  onChange={(e) => setNoticeTitle(e.target.value)}
+                  placeholder="e.g. Scheduled Water Shutdown"
+                  required
+                  disabled={publishingNotice}
+                  className="border border-slate-300 focus:border-indigo-600 focus:outline-none rounded-md p-2 w-full text-slate-950 text-sm bg-white"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Notice Content</label>
+                <textarea
+                  value={noticeContent}
+                  onChange={(e) => setNoticeContent(e.target.value)}
+                  placeholder="Type the notice details..."
+                  required
+                  rows={6}
+                  disabled={publishingNotice}
+                  className="border border-slate-300 focus:border-indigo-600 focus:outline-none rounded-md p-2 w-full text-slate-950 text-sm bg-white resize-none"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={publishingNotice}
+                className="bg-brand-navy hover:bg-brand-navy-hover active:bg-brand-navy-active text-white text-xs font-semibold py-2 px-4 rounded-md w-full cursor-pointer disabled:opacity-50"
+              >
+                {publishingNotice ? 'Publishing...' : 'Publish Notice'}
+              </button>
+            </form>
+          </div>
+
+          {/* Right Column: Active bulletins registry */}
+          <div className="lg:col-span-2 bg-white border border-slate-200 p-6 space-y-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-indigo-600 font-semibold text-sm">
+                <FileText size={16} />
+                <h3>Active Notice Bulletin Registry</h3>
+              </div>
+              <p className="text-xs text-slate-500 font-medium">Manage and delete posted notice letters.</p>
+            </div>
+
+            {loadingNotices ? (
+              <p className="text-xs text-slate-500 italic">Syncing notice board...</p>
+            ) : notices.length === 0 ? (
+              <p className="text-xs text-slate-400 italic p-8 border border-dashed border-slate-200 text-center bg-slate-50">
+                No notice letters currently broadcasted.
+              </p>
+            ) : (
+              <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                {notices.map((n) => (
+                  <div key={n.id} className="p-4 border border-slate-200 bg-slate-50/50 flex flex-col justify-between space-y-2 rounded-brand-md">
+                    <div className="flex justify-between items-start gap-2">
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-900">{n.title}</h4>
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          {new Date(n.createdAt).toLocaleString()}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteNotice(n.id)}
+                        className="text-red-500 hover:text-red-700 text-[10px] font-bold border border-red-200 hover:bg-red-50 px-2 py-1 rounded cursor-pointer"
+                      >
+                        Delete Notice
+                      </button>
+                    </div>
+                    <p className="text-xs text-slate-600 whitespace-pre-line leading-relaxed">{n.content}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {currentTab === 'logs' && (
+        <div className="bg-white border border-slate-200 p-6 space-y-4 text-left">
+          <div className="flex items-center gap-2 text-slate-700 font-semibold text-sm">
+            <Lock size={16} className="text-slate-500" />
+            <h3>System Audit & Activity Logs</h3>
+          </div>
+
+          {/* Scrollable container with stationary header */}
+          <div className="border border-slate-200 rounded-md overflow-hidden">
+            {loadingAudits ? (
+              <div className="text-center p-12 text-slate-500 text-sm">
+                Fetching audit trails...
+              </div>
+            ) : auditLogs.length === 0 ? (
+              <div className="text-center p-12 text-slate-400 text-sm">
+                No system audit records found.
+              </div>
+            ) : (
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="bg-slate-50 text-slate-500 text-[10px] font-bold uppercase tracking-wider p-4">
+                      Timestamp
+                    </th>
+                    <th className="bg-slate-50 text-slate-500 text-[10px] font-bold uppercase tracking-wider p-4">
+                      System Event / Action
+                    </th>
+                    <th className="bg-slate-50 text-slate-500 text-[10px] font-bold uppercase tracking-wider p-4">
+                      Operator Role
+                    </th>
+                    <th className="bg-slate-50 text-slate-500 text-[10px] font-bold uppercase tracking-wider p-4">
+                      Status State
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {auditLogs.map((log) => (
+                    <tr key={log.id} className="hover:bg-slate-50/50">
+                      <td className="p-4 text-slate-500 text-xs font-mono">
+                        {new Date(log.createdAt).toLocaleString()}
+                      </td>
+                      <td className="p-4 space-y-0.5">
+                        <p className="text-slate-900 font-semibold text-xs">{log.action}</p>
+                        <p className="text-slate-400 text-[10px]" title={log.details}>
+                          {formatEventDetails(log)}
+                        </p>
+                      </td>
+                      <td className="p-4">
+                        <span className="text-xs text-slate-700 font-medium">
+                          {log.user ? log.user.role : 'SYSTEM'}
+                        </span>
+                      </td>
+                      <td className="p-4">
+                        <span className="bg-green-50 border border-green-200 text-green-700 text-[9px] font-bold px-1.5 py-0.2 rounded uppercase">
+                          Success
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+          {auditTotalPages > 1 && (
+            <div className="flex items-center justify-between text-xs text-slate-500 pt-3 border-t border-slate-100">
+              <span>Page {auditPage} of {auditTotalPages}</span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setAuditPage(prev => Math.max(prev - 1, 1))}
+                  disabled={auditPage === 1}
+                  className="px-2 py-1 border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-50 cursor-pointer focus:outline-none"
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => setAuditPage(prev => Math.min(prev + 1, auditTotalPages))}
+                  disabled={auditPage === auditTotalPages}
+                  className="px-2 py-1 border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-50 cursor-pointer focus:outline-none"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
         {currentTab === 'directory' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -1531,7 +1693,7 @@ export default function AdminDashboard() {
                         const userSel = document.getElementById('promote-user-select')?.value;
                         const roleSel = document.getElementById('promote-role-select')?.value;
                         if (!userSel) {
-                          alert('Please select a resident to promote.');
+                          triggerAlert('Selection Required', 'Please select a resident to promote to the committee first.', 'warning');
                           return;
                         }
                         handlePromote(userSel, roleSel);
@@ -1772,7 +1934,7 @@ export default function AdminDashboard() {
                               <div className="flex gap-2">
                                 <button
                                   onClick={() => handleRecordCashSettlement(b)}
-                                  className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold py-1 px-3 rounded-md focus:outline-none cursor-pointer"
+                                  className="bg-brand-navy hover:bg-brand-navy-hover active:bg-brand-navy-active text-white text-xs font-semibold py-1 px-3 rounded-md focus:outline-none cursor-pointer"
                                 >
                                   Record Cash Settlement
                                 </button>
@@ -2014,7 +2176,7 @@ export default function AdminDashboard() {
                               {item.status !== 'RESOLVED' ? (
                                 <button
                                   onClick={() => handleResolveComplaint(item.id)}
-                                  className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold py-1 px-2.5 rounded-md cursor-pointer focus:outline-none"
+                                  className="bg-brand-navy hover:bg-brand-navy-hover active:bg-brand-navy-active text-white text-xs font-semibold py-1 px-2.5 rounded-md cursor-pointer focus:outline-none"
                                 >
                                   Resolve
                                 </button>
@@ -2132,8 +2294,6 @@ export default function AdminDashboard() {
             )}
           </div>
         )}
-
-      </main>
 
       {/* Resident Profile Editor Modal */}
       {editingResident && (
@@ -2307,7 +2467,7 @@ export default function AdminDashboard() {
               <button
                 type="button"
                 onClick={() => setTempPasswordMsg('')}
-                className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold px-4 py-2 rounded-md cursor-pointer focus:outline-none"
+                className="bg-brand-navy hover:bg-brand-navy-hover active:bg-brand-navy-active text-white text-xs font-semibold px-4 py-2 rounded-md cursor-pointer focus:outline-none"
               >
                 Close & Done
               </button>
@@ -2315,6 +2475,18 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
-    </div>
+
+      <ConfirmModal
+        isOpen={modal.isOpen}
+        title={modal.title}
+        message={modal.message}
+        confirmLabel={modal.confirmLabel}
+        cancelLabel={modal.cancelLabel}
+        onConfirm={modal.onConfirm}
+        onCancel={closeModal}
+        isAlert={modal.isAlert}
+        type={modal.type}
+      />
+    </DashboardLayout>
   );
 }
